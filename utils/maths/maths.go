@@ -42,3 +42,14 @@ func Sign(i int) int {
 	}
 	return 0
 }
+
+func Sum(nums ...int) int {
+	if len(nums) == 0 {
+		panic("Sum requires at least one argument")
+	}
+	sum := nums[0]
+	for _, n := range nums[1:] {
+		sum += n
+	}
+	return sum
+}
