@@ -16,13 +16,13 @@ func (d Day9) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2015, Day: 9}
 }
 
-var day9Regex = regexp.MustCompile(`(.+) to (.+) = (\d+)`)
+var costRegex = regexp.MustCompile(`(.+) to (.+) = (\d+)`)
 
-func parseInput(input string) map[string]map[string]int {
+func (d Day9) parseInput(input string) map[string]map[string]int {
 	graph := make(map[string]map[string]int)
 
 	for _, line := range strings.Split(strings.TrimSpace(input), "\n") {
-		matches := day9Regex.FindStringSubmatch(line)
+		matches := costRegex.FindStringSubmatch(line)
 		if len(matches) != 4 {
 			continue
 		}
@@ -85,7 +85,7 @@ func calculateDistances(graph map[string]map[string]int, permutations [][]string
 }
 
 func (d Day9) getAllDistances(input string) []int {
-	graph := parseInput(input)
+	graph := d.parseInput(input)
 
 	nodes := make([]string, 0, len(graph))
 	for node := range graph {

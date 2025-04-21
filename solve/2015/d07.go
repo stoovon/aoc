@@ -13,6 +13,10 @@ import (
 type Day7 struct {
 }
 
+var (
+	lowerCase = regexp.MustCompile(`^[a-z]+$`)
+)
+
 func (d Day7) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2015, Day: 7}
 }
@@ -39,7 +43,7 @@ func createValueFunc(rules map[string]string) func(string) int {
 		}
 
 		switch {
-		case regexp.MustCompile(`^[a-z]+$`).MatchString(value):
+		case lowerCase.MatchString(value):
 			cache[key] = getValue(value)
 		case strings.HasPrefix(value, "NOT "):
 			arg := getValue(value[4:])
