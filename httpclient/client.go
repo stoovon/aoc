@@ -138,7 +138,6 @@ func (c *Client) SubmitAnswer(year, day, part int, answer string) (string, error
 	fmt.Printf("submitting for day %d, year %d, part %d\n", day, year, part)
 
 	response := c.post(answerUrl, bytes.NewBufferString(formData.Encode()))
-	fmt.Printf(response)
 
 	return response, nil
 }
