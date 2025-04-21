@@ -4,6 +4,8 @@ import (
 	"aoc/solve"
 
 	_ "aoc/solve/2015"
+	_ "aoc/solve/2016"
+	_ "aoc/solve/2023"
 	_ "aoc/solve/2024"
 )
 
