@@ -31,38 +31,43 @@ func (d Day18) solve(input string, part1 bool) string {
 	}
 
 	grid := map[image.Point]bool{}
-	for y := range size + 1 {
-		for x := range size + 1 {
+	for y := 0; y <= size; y++ {
+		for x := 0; x <= size; x++ {
 			grid[image.Point{X: x, Y: y}] = true
 		}
 	}
 
-loop:
 	for b := range bytes {
 		grid[bytes[b]] = false
 
-		// Breadth-First Search (BFS) initialization
-		queue, dist := []image.Point{{0, 0}}, map[image.Point]int{{0, 0}: 0}
+		queue := []image.Point{{0, 0}}
+		dist := map[image.Point]int{{0, 0}: 0}
+		found := false
+
 		for len(queue) > 0 {
 			p := queue[0]
 			queue = queue[1:]
 
 			if p == (image.Point{X: size, Y: size}) {
-				if b == 1024 {
-					if part1 {
-						return strconv.Itoa(dist[p])
-					}
+				if b == 1024 && part1 {
+					return strconv.Itoa(dist[p])
 				}
-				continue loop
+				found = true
+				break
 			}
 
 			// BFS: Explore neighbors
 			for _, d := range grids.URDL() {
 				n := p.Add(d)
 				if _, ok := dist[n]; !ok && grid[n] {
-					queue, dist[n] = append(queue, n), dist[p]+1
+					queue = append(queue, n)
+					dist[n] = dist[p] + 1
 				}
 			}
+		}
+
+		if found {
+			continue
 		}
 
 		if !part1 {
