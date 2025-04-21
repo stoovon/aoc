@@ -7,11 +7,30 @@ func Abs(x int) int {
 	return x
 }
 
-func Min(a, b int) int {
-	if a < b {
-		return a
+func Max(nums ...int) int {
+	if len(nums) == 0 {
+		panic("Max requires at least one argument")
 	}
-	return b
+	maximum := nums[0]
+	for _, n := range nums[1:] {
+		if n > maximum {
+			maximum = n
+		}
+	}
+	return maximum
+}
+
+func Min(nums ...int) int {
+	if len(nums) == 0 {
+		panic("Min requires at least one argument")
+	}
+	minimum := nums[0]
+	for _, n := range nums[1:] {
+		if n < minimum {
+			minimum = n
+		}
+	}
+	return minimum
 }
 
 // Sign returns the sign of an integer (-1, 0, or 1).

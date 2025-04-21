@@ -23,7 +23,7 @@ func (d Day21) Coords() solve.SolutionCoords {
 }
 
 var (
-	dirMap = grids.Directions("^v><")
+	dirMap = grids.DirectionsPoints("^v><")
 
 	numericKeypadPerButton = grids.NewGridOptions().Parse(`
 789
