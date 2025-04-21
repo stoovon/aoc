@@ -15,13 +15,16 @@ func (d Day3) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2024, Day: 3}
 }
 
+var (
+	mulRe = regexp.MustCompile(`mul\((\d{1,3}),(\d{1,3})\)|(do)\(\)|(don't)\(\)`)
+)
+
 type registers struct {
 	mulTotal         int64
 	mulTotalExecuted int64
 }
 
 func (d Day3) eval(input string) (registers, error) {
-	mulRe := regexp.MustCompile(`mul\((\d{1,3}),(\d{1,3})\)|(do)\(\)|(don't)\(\)`)
 	mulMatches := mulRe.FindAllStringSubmatch(string(input), -1)
 
 	var mulTotal, mulTotalState int64
