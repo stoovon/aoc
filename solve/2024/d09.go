@@ -13,12 +13,12 @@ func (d Day9) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2024, Day: 9}
 }
 
-type File struct {
+type file struct {
 	ID   int
 	Size int
 }
 
-type Day9Disk struct {
+type day9Disk struct {
 	Blocks []int // -1 represents free space, non-negative numbers represent file IDs
 }
 
@@ -39,7 +39,7 @@ func (d Day9) parseDiskMap(input string) ([]int, []int) {
 	return files, spaces
 }
 
-func (d Day9) createInitialDiskState(files, spaces []int) Day9Disk {
+func (d Day9) createInitialDiskState(files, spaces []int) day9Disk {
 	var blocks []int
 	fileID := 0
 
@@ -58,11 +58,11 @@ func (d Day9) createInitialDiskState(files, spaces []int) Day9Disk {
 		}
 	}
 
-	return Day9Disk{Blocks: blocks}
+	return day9Disk{Blocks: blocks}
 }
 
 // findFirstFreeSpace finds the leftmost free space in the disk
-func (d *Day9Disk) findFirstFreeSpace() int {
+func (d *day9Disk) findFirstFreeSpace() int {
 	for i, block := range d.Blocks {
 		if block == -1 {
 			return i
@@ -72,7 +72,7 @@ func (d *Day9Disk) findFirstFreeSpace() int {
 }
 
 // findLastFileBlock finds the position of the rightmost block of any file
-func (d *Day9Disk) findLastFileBlock() int {
+func (d *day9Disk) findLastFileBlock() int {
 	for i := len(d.Blocks) - 1; i >= 0; i-- {
 		if d.Blocks[i] != -1 {
 			return i
@@ -81,13 +81,13 @@ func (d *Day9Disk) findLastFileBlock() int {
 	return -1
 }
 
-func (d *Day9Disk) moveOneBlock(fromIndex, toIndex int) {
+func (d *day9Disk) moveOneBlock(fromIndex, toIndex int) {
 	fileID := d.Blocks[fromIndex]
 	d.Blocks[fromIndex] = -1
 	d.Blocks[toIndex] = fileID
 }
 
-func (d *Day9Disk) calculateChecksum() int {
+func (d *day9Disk) calculateChecksum() int {
 	cs := 0
 	for pos, fileID := range d.Blocks {
 		if fileID != -1 {
@@ -98,7 +98,7 @@ func (d *Day9Disk) calculateChecksum() int {
 }
 
 // findFileSize finds the size of the file containing pos
-func (d *Day9Disk) findFileSize(pos int) int {
+func (d *day9Disk) findFileSize(pos int) int {
 	if pos < 0 || pos >= len(d.Blocks) || d.Blocks[pos] == -1 {
 		return 0
 	}
@@ -119,7 +119,7 @@ func (d *Day9Disk) findFileSize(pos int) int {
 }
 
 // findFileStart finds the starting position of the file containing pos
-func (d *Day9Disk) findFileStart(pos int) int {
+func (d *day9Disk) findFileStart(pos int) int {
 	if pos < 0 || pos >= len(d.Blocks) || d.Blocks[pos] == -1 {
 		return -1
 	}
@@ -133,7 +133,7 @@ func (d *Day9Disk) findFileStart(pos int) int {
 }
 
 // findFreeSpaceSize finds size of contiguous free space starting at pos
-func (d *Day9Disk) findFreeSpaceSize(pos int) int {
+func (d *day9Disk) findFreeSpaceSize(pos int) int {
 	size := 0
 	for i := pos; i < len(d.Blocks) && d.Blocks[i] == -1; i++ {
 		size++
@@ -141,7 +141,7 @@ func (d *Day9Disk) findFreeSpaceSize(pos int) int {
 	return size
 }
 
-func (d *Day9Disk) moveWholeFile(fromIndex, toIndex, size int) {
+func (d *day9Disk) moveWholeFile(fromIndex, toIndex, size int) {
 	fileID := d.Blocks[fromIndex]
 
 	// Clear old location

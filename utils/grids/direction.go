@@ -22,11 +22,20 @@ func DURL() []image.Point {
 	}
 }
 
-func Directions(udrl string) map[rune]image.Point {
+func DirectionsPoints(udrl string) map[rune]image.Point {
 	return map[rune]image.Point{
 		rune(udrl[0]): {-1, 0},
 		rune(udrl[1]): {1, 0},
 		rune(udrl[2]): {0, 1},
 		rune(udrl[3]): {0, -1},
+	}
+}
+
+func DirectionsComplex(udrl string) map[rune]complex128 {
+	return map[rune]complex128{
+		rune(udrl[0]): -1i,
+		rune(udrl[1]): 1,
+		rune(udrl[2]): 1i,
+		rune(udrl[3]): -1,
 	}
 }

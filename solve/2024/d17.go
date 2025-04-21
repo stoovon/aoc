@@ -16,14 +16,14 @@ func (d Day17) Coords() solve.SolutionCoords {
 }
 
 const (
-	INS_ADV int = iota
-	INS_BXL
-	INS_BST
-	INS_JNZ
-	INS_BXC
-	INS_OUT
-	INS_BDV
-	INS_CDV
+	InsAdv int = iota
+	InsBxl
+	InsBst
+	InsJnz
+	InsBxc
+	InsOut
+	InsBdv
+	InsCdv
 )
 
 type d17Program struct {
@@ -43,23 +43,23 @@ func (prog *d17Program) Execute() []int {
 		combo := comboOperand(literal, prog.regA, prog.regB, prog.regC)
 
 		switch instruction {
-		case INS_ADV:
+		case InsAdv:
 			prog.regA >>= combo
-		case INS_BXL:
+		case InsBxl:
 			prog.regB ^= literal
-		case INS_BST:
+		case InsBst:
 			prog.regB = combo % 8
-		case INS_JNZ:
+		case InsJnz:
 			if prog.regA != 0 {
 				insPtr = literal - 2
 			}
-		case INS_BXC:
+		case InsBxc:
 			prog.regB = prog.regB ^ prog.regC
-		case INS_OUT:
+		case InsOut:
 			output = append(output, combo%8)
-		case INS_BDV:
+		case InsBdv:
 			prog.regB = prog.regA >> combo
-		case INS_CDV:
+		case InsCdv:
 			prog.regC = prog.regA >> combo
 		}
 		insPtr += 2
@@ -126,7 +126,7 @@ func (d Day17) Part2(input string) (string, error) {
 	// the algo we're reverse engineering seems to use the last 3 bits of A to determine the output value,
 	// LSB corresponding to first such value.
 	// Increment to find e.g. first and second values. Then loop until we find all values.
-	
+
 	// This approach cuts the number of iterations considerably.
 	for pos := len(program.data) - 1; pos >= 0; pos-- {
 		candidateA <<= 3
@@ -167,48 +167,6 @@ func (d Day17) parseRegisters(input string) d17Program {
 		regB: b,
 		regC: c,
 	}
-}
-
-func runProgram(a, b, c int, program []int) []int {
-	out := make([]int, 0)
-	// for each isntruction pointer
-	for ip := 0; ip < len(program); ip += 2 {
-		opcode, operand := program[ip], program[ip+1]
-		// Process combo operand
-		value := operand
-		switch operand {
-		case 4:
-			value = a
-		case 5:
-			value = b
-		case 6:
-			value = c
-		}
-
-		// Execute instruction
-		switch opcode {
-		case 0: // adv - divide A by 2^value
-			a >>= value
-		case 1: // bxl - XOR B with literal
-			b ^= operand
-		case 2: // bst - set B to value mod 8
-			b = value % 8
-		case 3: // jnz - jump if A is not zero
-			if a != 0 {
-				ip = operand - 2
-			}
-		case 4: // bxc - XOR B with C
-			b ^= c
-		case 5: // out - output value mod 8
-			out = append(out, value%8)
-		case 6: // bdv - divide A by 2^value, store in B
-			b = a >> value
-		case 7: // cdv - divide A by 2^value, store in C
-			c = a >> value
-		}
-	}
-
-	return out
 }
 
 func init() {

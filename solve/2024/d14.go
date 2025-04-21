@@ -18,16 +18,16 @@ func (d Day14) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2024, Day: 14}
 }
 
-type Robot struct {
+type robot struct {
 	Position, Velocity image.Point
 }
 
-func parseRobots(input string, area image.Rectangle) ([]Robot, map[image.Point]int) {
-	var robots []Robot
+func parseRobots(input string, area image.Rectangle) ([]robot, map[image.Point]int) {
+	var robots []robot
 	quadrants := map[image.Point]int{}
 
 	for _, line := range strings.Split(strings.TrimSpace(input), "\n") {
-		var r Robot
+		var r robot
 		_, err := fmt.Sscanf(line, "p=%d,%d v=%d,%d",
 			&r.Position.X, &r.Position.Y, &r.Velocity.X, &r.Velocity.Y)
 		if err != nil {
@@ -45,7 +45,7 @@ func parseRobots(input string, area image.Rectangle) ([]Robot, map[image.Point]i
 	return robots, quadrants
 }
 
-func moveRobots(robots []Robot, area image.Rectangle) map[image.Point]struct{} {
+func moveRobots(robots []robot, area image.Rectangle) map[image.Point]struct{} {
 	seen := map[image.Point]struct{}{}
 	for i := range robots {
 		robots[i].Position = robots[i].Position.Add(robots[i].Velocity).Mod(area)
