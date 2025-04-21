@@ -5,7 +5,7 @@ import (
 
 	_ "aoc/solve/2015"
 	_ "aoc/solve/2016"
-	//_ "aoc/solve/2017"
+	_ "aoc/solve/2017"
 	//_ "aoc/solve/2018"
 	//_ "aoc/solve/2019"
 	//_ "aoc/solve/2020"

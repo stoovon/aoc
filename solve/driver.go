@@ -106,7 +106,7 @@ func (d *Driver) submitPart(input string, solver Solver, part int, fullCache boo
 		return err
 	}
 
-	if strings.HasPrefix(response, "That's the right answer!") {
+	if strings.Contains(response, "That's the right answer!") {
 		return nil
 	}
 
