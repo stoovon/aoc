@@ -23,7 +23,7 @@ type spell struct {
 	turns   int
 	damage  int
 	healing int
-	armor   int
+	armour  int
 	mana    int
 }
 
@@ -54,15 +54,15 @@ type effect struct {
 
 func (s *state) processEffects() (int, int, int, []effect) {
 	hp, mana, bossHP := s.hp, s.mana, s.bossHP
-	armor := 0
+	armour := 0
 	var remainingEffects []effect
 
 	for _, currentEffect := range s.effects {
 		hp += currentEffect.spell.healing
 		mana += currentEffect.spell.mana
 		bossHP -= currentEffect.spell.damage
-		if currentEffect.spell.armor > armor {
-			armor = currentEffect.spell.armor
+		if currentEffect.spell.armour > armour {
+			armour = currentEffect.spell.armour
 		}
 		if currentEffect.turns > 1 {
 			remainingEffects = append(remainingEffects, effect{currentEffect.turns - 1, currentEffect.spell})
@@ -76,19 +76,19 @@ func (s *state) bossTurn() {
 	hp, mana, bossHP, effects := s.processEffects()
 	s.hp, s.mana, s.bossHP, s.effects = hp, mana, bossHP, effects
 	if s.bossHP > 0 {
-		damage := max(1, s.bossDamage-armorFromEffects(effects))
+		damage := max(1, s.bossDamage-armourFromEffects(effects))
 		s.hp -= damage
 	}
 }
 
-func armorFromEffects(effects []effect) int {
-	armor := 0
+func armourFromEffects(effects []effect) int {
+	armour := 0
 	for _, effect := range effects {
-		if effect.spell.armor > armor {
-			armor = effect.spell.armor
+		if effect.spell.armour > armour {
+			armour = effect.spell.armour
 		}
 	}
-	return armor
+	return armour
 }
 
 func (s *state) transitions() []*state {

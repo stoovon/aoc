@@ -19,23 +19,23 @@ type item struct {
 	name   string
 	cost   int
 	damage int
-	armor  int
+	armour int
 }
 
 type player struct {
 	hp     int
 	damage int
-	armor  int
+	armour int
 }
 
 func simulateBattle(player, boss player) bool {
 	for {
-		boss.hp -= max(1, player.damage-boss.armor)
+		boss.hp -= max(1, player.damage-boss.armour)
 		if boss.hp <= 0 {
 			return true
 		}
 
-		player.hp -= max(1, boss.damage-player.armor)
+		player.hp -= max(1, boss.damage-player.armour)
 		if player.hp <= 0 {
 			return false
 		}
@@ -53,7 +53,7 @@ func (d Day21) Part1(input string) (string, error) {
 		{"Greataxe", 74, 8, 0},
 	}
 
-	armor := []item{
+	armour := []item{
 		{"Leather", 13, 0, 1},
 		{"Chainmail", 31, 0, 2},
 		{"Splintmail", 53, 0, 3},
@@ -75,16 +75,16 @@ func (d Day21) Part1(input string) (string, error) {
 
 	minCost := math.MaxInt
 	for _, w := range weapons {
-		for _, a := range armor {
+		for _, a := range armour {
 			for i := 0; i < len(rings); i++ {
 				for j := i + 1; j < len(rings); j++ {
 					cost := w.cost + a.cost + rings[i].cost + rings[j].cost
 					playerCharacter := player{
 						hp:     100,
 						damage: w.damage + a.damage + rings[i].damage + rings[j].damage,
-						armor:  w.armor + a.armor + rings[i].armor + rings[j].armor,
+						armour: w.armour + a.armour + rings[i].armour + rings[j].armour,
 					}
-					boss := player{hp: bossStats[0], damage: bossStats[1], armor: bossStats[2]}
+					boss := player{hp: bossStats[0], damage: bossStats[1], armour: bossStats[2]}
 					if simulateBattle(playerCharacter, boss) {
 						if cost < minCost {
 							minCost = cost
@@ -109,7 +109,7 @@ func (d Day21) Part2(input string) (string, error) {
 		{"Greataxe", 74, 8, 0},
 	}
 
-	armor := []item{
+	armour := []item{
 		{"Leather", 13, 0, 1},
 		{"Chainmail", 31, 0, 2},
 		{"Splintmail", 53, 0, 3},
@@ -131,16 +131,16 @@ func (d Day21) Part2(input string) (string, error) {
 
 	maxCost := 0
 	for _, w := range weapons {
-		for _, a := range armor {
+		for _, a := range armour {
 			for i := 0; i < len(rings); i++ {
 				for j := i + 1; j < len(rings); j++ {
 					cost := w.cost + a.cost + rings[i].cost + rings[j].cost
 					playerCharacter := player{
 						hp:     100,
 						damage: w.damage + a.damage + rings[i].damage + rings[j].damage,
-						armor:  w.armor + a.armor + rings[i].armor + rings[j].armor,
+						armour: w.armour + a.armour + rings[i].armour + rings[j].armour,
 					}
-					boss := player{hp: bossStats[0], damage: bossStats[1], armor: bossStats[2]}
+					boss := player{hp: bossStats[0], damage: bossStats[1], armour: bossStats[2]}
 					if !simulateBattle(playerCharacter, boss) {
 						if cost > maxCost {
 							maxCost = cost
