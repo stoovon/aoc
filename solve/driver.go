@@ -1,12 +1,13 @@
 package solve
 
 import (
-	"aoc/httpclient"
 	"errors"
 	"fmt"
 	"log"
 	"sort"
 	"strings"
+
+	"aoc/httpclient"
 )
 
 type Driver struct {
