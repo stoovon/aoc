@@ -14,7 +14,7 @@ type Day20 struct {
 }
 
 func (d Day20) Coords() solve.SolutionCoords {
-	return solve.SolutionCoords{Year: 2016, Day: 21}
+	return solve.SolutionCoords{Year: 2016, Day: 20}
 }
 
 // parseRanges parses the input into a sorted list of integer pairs
