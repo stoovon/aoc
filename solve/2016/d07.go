@@ -15,6 +15,8 @@ func (d Day7) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2016, Day: 7}
 }
 
+var segmentRe = regexp.MustCompile(`\[|\]`)
+
 // Checks if a string contains an ABBA pattern
 func (d Day7) abba(text string) bool {
 	for i := 0; i < len(text)-3; i++ {
@@ -28,8 +30,7 @@ func (d Day7) abba(text string) bool {
 
 // Splits a line into segments inside and outside square brackets
 func (d Day7) segment(line string) []string {
-	re := regexp.MustCompile(`\[|\]`)
-	return re.Split(line, -1)
+	return segmentRe.Split(line, -1)
 }
 
 // Extracts segments outside square brackets

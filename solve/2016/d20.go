@@ -2,7 +2,6 @@ package solve2016
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,10 +20,9 @@ func (d Day20) Coords() solve.SolutionCoords {
 func (d Day20) parseRanges(input string) ([][2]int, error) {
 	lines := strings.Split(strings.TrimSpace(input), "\n")
 	pairs := make([][2]int, len(lines))
-	re := regexp.MustCompile(`\d+`)
 
 	for i, line := range lines {
-		matches := re.FindAllString(line, -1)
+		matches := digitRe.FindAllString(line, -1)
 		if len(matches) != 2 {
 			return nil, fmt.Errorf("invalid range: %s", line)
 		}
