@@ -17,6 +17,10 @@ func (d Day22) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2016, Day: 22}
 }
 
+var (
+	digitRe = regexp.MustCompile(`\d+`)
+)
+
 type Node struct {
 	X, Y, Size, Used, Avail, Pct int
 }
@@ -58,8 +62,7 @@ func (pq *PriorityQueue) Pop() interface{} {
 }
 
 func parseInts(s string) []int {
-	re := regexp.MustCompile(`\d+`)
-	matches := re.FindAllString(s, -1)
+	matches := digitRe.FindAllString(s, -1)
 	ints := make([]int, len(matches))
 	for i, m := range matches {
 		ints[i], _ = strconv.Atoi(m)

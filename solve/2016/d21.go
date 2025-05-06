@@ -2,7 +2,6 @@ package solve2016
 
 import (
 	"errors"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,8 +15,6 @@ type Day21 struct {
 func (d Day21) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2016, Day: 21}
 }
-
-var intRe = regexp.MustCompile(`\d+`)
 
 func (d Day21) scramble(password string, instructions []string) string {
 	pw := []rune(password)
@@ -62,7 +59,7 @@ func (d Day21) scramble(password string, instructions []string) string {
 }
 
 func (d Day21) parseInts(s string) []int {
-	matches := intRe.FindAllString(s, -1)
+	matches := digitRe.FindAllString(s, -1)
 	nums := make([]int, len(matches))
 	for i, m := range matches {
 		nums[i], _ = strconv.Atoi(m)

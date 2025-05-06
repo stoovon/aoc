@@ -15,6 +15,8 @@ func (d Day7) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2016, Day: 7}
 }
 
+var segmentRe = regexp.MustCompile(`\[|\]`)
+
 func (d Day7) abba(text string) bool {
 	for i := 0; i < len(text)-3; i++ {
 		a, b, c, d := text[i], text[i+1], text[i+2], text[i+3]
@@ -26,8 +28,7 @@ func (d Day7) abba(text string) bool {
 }
 
 func (d Day7) segment(line string) []string {
-	re := regexp.MustCompile(`\[|\]`)
-	return re.Split(line, -1)
+	return segmentRe.Split(line, -1)
 }
 
 func (d Day7) outsides(segments []string) []string {
