@@ -56,7 +56,20 @@ func (g *day23Grid) nextPos(p int, dir int) (int, bool) {
 }
 
 func (g *day23Grid) intersectionsAndDistances(slopes bool) [][][2]int {
-	vpts := []int{g.width, len(g.data) - g.width - 1}
+	start, end := -1, -1
+	for i := 0; i < g.width; i++ {
+		if g.data[i] == '.' {
+			start = i
+			break
+		}
+	}
+	for i := len(g.data) - g.width; i < len(g.data); i++ {
+		if g.data[i] == '.' {
+			end = i
+			break
+		}
+	}
+	vpts := []int{start, end}
 	for i, c := range g.data {
 		if c == '#' {
 			continue
@@ -169,5 +182,5 @@ func (d Day23) Part2(input string) (string, error) {
 }
 
 func init() {
-	solve.Register(Day1{})
+	solve.Register(Day23{})
 }
