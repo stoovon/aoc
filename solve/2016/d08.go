@@ -1,12 +1,12 @@
 package solve2016
 
 import (
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"aoc/solve"
+	"aoc/utils/grids"
 )
 
 type Day8 struct {
@@ -70,146 +70,6 @@ func (d Day8) run(commands []string, screen [][]int) [][]int {
 	return screen
 }
 
-// Matches a rendered letter to predefined patterns
-func (d Day8) matchCharacter(letterRender string) string {
-	renders := map[string]string{
-		"A": `
- XX  
-X  X 
-X  X 
-XXXX 
-X  X 
-X  X 
-`,
-		"C": `
- XX  
-X  X 
-X    
-X    
-X  X 
- XX  
-`,
-		"E": `
-XXXX 
-X    
-XXX  
-X    
-X    
-XXXX 
-`,
-		"G": `
- XX  
-X  X 
-X    
-X XX 
-X  X 
- XXX 
-`,
-		"H": `
-X  X 
-X  X 
-XXXX 
-X  X 
-X  X 
-X  X 
-`,
-		"J": `
-  XX 
-   X 
-   X 
-   X 
-X  X 
- XX  
-`,
-		"K": `
-X  X 
-X X  
-XX   
-X X  
-X X  
-X  X 
-`,
-		"L": `
-X    
-X    
-X    
-X    
-X    
-XXXX 
-`,
-		"O": `
- XX  
-X  X 
-X  X 
-X  X 
-X  X 
- XX  
-`,
-		"P": `
-XXX  
-X  X 
-X  X 
-XXX  
-X    
-X    
-`,
-		"R": `
-XXX  
-X  X 
-X  X 
-XXX  
-X X  
-X  X 
-`,
-		"Y": `
-X   X
-X   X
- X X 
-  X  
-  X  
-  X  
-`,
-		"Z": `
-XXXX 
-   X 
-  X  
- X   
-X    
-XXXX 
-`,
-	}
-
-	for k, v := range renders {
-		if "\n"+letterRender == v {
-			return k
-		}
-	}
-
-	fmt.Printf("Letter not recognised: \n\n%s", letterRender)
-	return "!"
-}
-
-// Decodes the screen into letters
-func (d Day8) ocr(screen [][]int) string {
-	result := ""
-	for col := 0; col < len(screen[0]); col += 5 {
-		letterRender := ""
-		for row := 0; row < len(screen); row++ {
-			line := ""
-			for c := col; c < col+5 && c < len(screen[0]); c++ {
-				if screen[row][c] == 1 {
-					line += "X"
-				} else {
-					line += " "
-				}
-			}
-			letterRender += line + "\n"
-		}
-		result += d.matchCharacter(letterRender)
-	}
-	return result
-}
-
 func (d Day8) Part1(input string) (string, error) {
 	screen := d.run(strings.Split(strings.TrimSpace(input), "\n"), d.Screen())
 	count := 0
@@ -236,7 +96,7 @@ func (d Day8) Part2(input string) (string, error) {
 	//	}
 	//	fmt.Println()
 	//}
-	return d.ocr(screen), nil
+	return grids.OCR(screen), nil
 }
 
 func init() {
