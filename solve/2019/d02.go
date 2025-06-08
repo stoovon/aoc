@@ -3,6 +3,7 @@ package solve2019
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"aoc/solve"
 )
@@ -15,18 +16,18 @@ func (d Day2) Coords() solve.SolutionCoords {
 }
 
 func (d Day2) Part1(input string) (string, error) {
-	prog, err := parseIntCode(input)
+	prog, err := parseIntcodeV1(input)
 	if err != nil {
 		return "", err
 	}
 	prog[1] = 12
 	prog[2] = 2
-	runIntCodeV1(prog)
+	runIntcodeV1(prog)
 	return strconv.Itoa(prog[0]), nil
 }
 
 func (d Day2) Part2(input string) (string, error) {
-	orig, err := parseIntCode(input)
+	orig, err := parseIntcodeV1(input)
 	if err != nil {
 		return "", err
 	}
@@ -37,7 +38,7 @@ func (d Day2) Part2(input string) (string, error) {
 			copy(prog, orig)
 			prog[1] = noun
 			prog[2] = verb
-			runIntCodeV1(prog)
+			runIntcodeV1(prog)
 			if prog[0] == target {
 				return strconv.Itoa(100*noun + verb), nil
 			}
@@ -46,8 +47,21 @@ func (d Day2) Part2(input string) (string, error) {
 	return "", fmt.Errorf("no noun/verb found")
 }
 
+func parseIntcodeV1(input string) ([]int, error) {
+	parts := strings.Split(strings.TrimSpace(input), ",")
+	res := make([]int, len(parts))
+	for i, s := range parts {
+		v, err := strconv.Atoi(s)
+		if err != nil {
+			return nil, err
+		}
+		res[i] = v
+	}
+	return res, nil
+}
+
 // (no parameter modes, no input/output)
-func runIntCodeV1(mem []int) {
+func runIntcodeV1(mem []int) {
 	ip := 0
 	for {
 		switch mem[ip] {
