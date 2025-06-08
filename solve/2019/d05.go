@@ -14,23 +14,15 @@ func (d Day5) Coords() solve.SolutionCoords {
 }
 
 func (d Day5) Part1(input string) (string, error) {
-	prog, err := parseIntCode(input)
-	if err != nil {
-		return "", err
-	}
-	ic := NewIntCode(prog, []int{1})
-	outputs := ic.Run()
-	return strconv.Itoa(outputs[len(outputs)-1]), nil
+	ic := parseIntcode(input)
+	outputs := ic.Run(1)
+	return strconv.FormatInt(outputs[len(outputs)-1], 10), nil
 }
 
 func (d Day5) Part2(input string) (string, error) {
-	prog, err := parseIntCode(input)
-	if err != nil {
-		return "", err
-	}
-	ic := NewIntCode(prog, []int{5})
-	outputs := ic.Run()
-	return strconv.Itoa(outputs[len(outputs)-1]), nil
+	ic := parseIntcode(input)
+	outputs := ic.Run(5)
+	return strconv.FormatInt(outputs[len(outputs)-1], 10), nil
 }
 
 func init() {
