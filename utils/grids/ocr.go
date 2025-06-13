@@ -12,6 +12,14 @@ XXXX
 X  X 
 X  X 
 `,
+		"B": `
+XXX  
+X  X 
+XXX  
+X  X 
+X  X 
+XXX  
+`,
 		"C": `
  XX  
 X  X 
@@ -99,6 +107,14 @@ X  X
 XXX  
 X X  
 X  X 
+`,
+		"U": `
+X  X
+X  X
+X  X
+X  X
+X  X
+ XX 
 `,
 		"Y": `
 X   X
