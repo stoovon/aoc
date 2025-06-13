@@ -13,6 +13,14 @@ XXXX
 X  X 
 X  X 
 `,
+		"B": `
+XXX  
+X  X 
+XXX  
+X  X 
+X  X 
+XXX  
+`,
 		"C": `
  XX  
 X  X 
@@ -101,6 +109,14 @@ XXX
 X X  
 X  X 
 `,
+		"U": `
+X  X
+X  X
+X  X
+X  X
+X  X
+ XX 
+`,
 		"Y": `
 X   X
 X   X
@@ -129,7 +145,7 @@ XXXX
 	return "!"
 }
 
-// Decodes the screen into letters
+// OCR decodes the screen into letters
 func OCR(screen [][]int) string {
 	result := ""
 	for col := 0; col < len(screen[0]); col += 5 {
