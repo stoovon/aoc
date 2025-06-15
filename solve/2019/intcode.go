@@ -164,6 +164,45 @@ func (c *Intcode) Run(input ...int64) []int64 {
 	return c.output
 }
 
+func (c *Intcode) ProvideASCIIInput(s string) {
+	if len(s) == 0 || s[len(s)-1] != '\n' {
+		s += "\n"
+	}
+	for _, ch := range s {
+		c.input = append(c.input, int64(ch))
+	}
+}
+
+func (c *Intcode) RunUntilInputOrHalt() (string, bool) {
+	var output strings.Builder
+	for !c.halted {
+		var input *int64
+		// Check if next instruction is input and input buffer is empty
+		instr := c.mem[c.ip]
+		op := instr % 100
+		if op == 3 {
+			if len(c.input) == 0 {
+				// Needs input, return current output
+				return output.String(), true
+			}
+			val := c.input[0]
+			c.input = c.input[1:]
+			input = &val
+		}
+		out, needInput, halted := c.stepOnce(input)
+		if halted {
+			return output.String(), false
+		}
+		if needInput {
+			return output.String(), true
+		}
+		if out != nil {
+			output.WriteByte(byte(*out))
+		}
+	}
+	return output.String(), false
+}
+
 func (c *Intcode) RunUntilOutput() []int64 {
 	c.output = nil
 	c.runCore(
