@@ -127,7 +127,7 @@ func (d *Driver) submitPart(input string, solver Solver, part int, fullCache boo
 		return errors.New(response)
 	} else {
 		// To avoid spamming the AoC servers, we should exit if anything is unexpected.
-		log.Fatalf("Unexpected response for part %d.\n", part)
+		log.Fatalf("Unexpected response for part %d: %s\n", part, response)
 	}
 
 	return nil
