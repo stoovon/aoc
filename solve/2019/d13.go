@@ -36,12 +36,44 @@ func (d Day13) Part2(input string) (string, error) {
 		score          int64
 	)
 
+	var inputVal int64
 	for !code.halted {
-		outs, _ := code.Step(nil, 3)
-		if len(outs) < 3 {
+		outputs := make([]int64, 0, 3)
+		for len(outputs) < 3 && !code.halted {
+			// Provide input only if needed
+			var in *int64
+			if len(code.input) > 0 {
+				inputVal = code.input[0]
+				in = &inputVal
+				code.input = nil
+			}
+			res := code.Step(in)
+			if res.Halted {
+				break
+			}
+			if res.NeedInput {
+				// Set joystick input for next step
+				if ballX < paddleX {
+					inputVal = -1
+				} else if ballX > paddleX {
+					inputVal = 1
+				} else {
+					inputVal = 0
+				}
+				in = &inputVal
+				res = code.Step(in)
+				if res.Halted {
+					break
+				}
+			}
+			if res.Output != nil {
+				outputs = append(outputs, *res.Output)
+			}
+		}
+		if len(outputs) < 3 {
 			break
 		}
-		x, y, v := outs[0], outs[1], outs[2]
+		x, y, v := outputs[0], outputs[1], outputs[2]
 		if x == -1 && y == 0 {
 			score = v
 		} else {
@@ -51,16 +83,6 @@ func (d Day13) Part2(input string) (string, error) {
 				ballX = x
 			}
 		}
-		// Set joystick input for next step (overwrite, don't append)
-		var input int64
-		if ballX < paddleX {
-			input = -1
-		} else if ballX > paddleX {
-			input = 1
-		} else {
-			input = 0
-		}
-		code.input = []int64{input}
 	}
 	return fmt.Sprint(score), nil
 }

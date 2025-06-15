@@ -19,10 +19,21 @@ func (d Day19) Part1(input string) (string, error) {
 		for x := 0; x < 50; x++ {
 			out := int64(-1)
 			p := parseIntcode(input) // create a fresh instance
-			p.runCore([]int64{int64(x), int64(y)}, func(v int64) bool {
+			inputs := []int64{int64(x), int64(y)}
+			idx := 0
+			inputFn := func() int64 {
+				if idx < len(inputs) {
+					v := inputs[idx]
+					idx++
+					return v
+				}
+				panic("no input available")
+			}
+			p.runCore(inputFn, func(v int64) bool {
 				out = v
 				return false
 			})
+
 			if out == 1 {
 				count++
 			}
@@ -36,7 +47,17 @@ func (d Day19) Part2(input string) (string, error) {
 	inBeam := func(x, y int) bool {
 		out := int64(-1)
 		p := parseIntcode(input)
-		p.runCore([]int64{int64(x), int64(y)}, func(v int64) bool {
+		inputs := []int64{int64(x), int64(y)}
+		idx := 0
+		inputFn := func() int64 {
+			if idx < len(inputs) {
+				v := inputs[idx]
+				idx++
+				return v
+			}
+			panic("no input available")
+		}
+		p.runCore(inputFn, func(v int64) bool {
 			out = v
 			return false
 		})

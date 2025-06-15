@@ -1,7 +1,6 @@
 package solve2019
 
 import (
-	"errors"
 	"image"
 	"strconv"
 
@@ -25,16 +24,44 @@ func (d Day11) Part1(input string) (string, error) {
 	panels := make(map[image.Point]int)
 	painted := make(map[image.Point]bool)
 
+	outputs := make([]int64, 0, 2)
+
 	for {
 		// Input: current panel color (default black/0)
 		color := panels[pos]
-		outputs, halted := code.Step([]int64{int64(color)}, 2)
-		if halted {
-			break
+		var input *int64
+		inputVal := int64(color)
+		input = &inputVal
+
+		// Collect two outputs per robot cycle
+		outputs = outputs[:0]
+		for len(outputs) < 2 {
+			var in *int64
+			res := code.Step(input)
+			input = nil // Only provide input for opcode 3
+			if res.Halted {
+				break
+			}
+			if res.NeedInput {
+				color := int64(panels[pos])
+				in = &color
+				res = code.Step(in)
+				if res.Halted {
+					break
+				}
+				if res.Output != nil {
+					outputs = append(outputs, *res.Output)
+				}
+				continue
+			}
+			if res.Output != nil {
+				outputs = append(outputs, *res.Output)
+			}
 		}
 		if len(outputs) < 2 {
-			return "", errors.New("Intcode did not output two values")
+			break // or return error
 		}
+
 		// Paint
 		panels[pos] = int(outputs[0])
 		painted[pos] = true
@@ -61,12 +88,37 @@ func (d Day11) Part2(input string) (string, error) {
 
 	for {
 		color := panels[pos]
-		outputs, halted := code.Step([]int64{int64(color)}, 2)
-		if halted {
-			break
+		var input *int64
+		inputVal := int64(color)
+		input = &inputVal
+
+		outputs := make([]int64, 0, 2)
+		for len(outputs) < 2 {
+			var in *int64
+
+			res := code.Step(input)
+			input = nil // Only provide input for opcode 3
+			if res.Halted {
+				break
+			}
+			if res.NeedInput {
+				color := int64(panels[pos])
+				in = &color
+				res = code.Step(in)
+				if res.Halted {
+					break
+				}
+				if res.Output != nil {
+					outputs = append(outputs, *res.Output)
+				}
+				continue
+			}
+			if res.Output != nil {
+				outputs = append(outputs, *res.Output)
+			}
 		}
 		if len(outputs) < 2 {
-			return "", errors.New("Intcode did not output two values")
+			break
 		}
 		panels[pos] = int(outputs[0])
 		if outputs[1] == 0 {

@@ -5,6 +5,14 @@ import (
 	"strings"
 )
 
+// WidePoint works just like image.Point, but uses int64 for coordinates in order
+// to avoid performance issues with repeated conversions between int and int64, and
+// also to handle larger grids without overflow.
+type WidePoint struct {
+	X int64
+	Y int64
+}
+
 type GridOptions struct {
 	Separator string
 	Cutset    string

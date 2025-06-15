@@ -1,6 +1,7 @@
 package solve2019
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -80,10 +81,37 @@ func (d Day17) Part2(input string) (string, error) {
 			append(asciiInput(funcB),
 				append(asciiInput(funcC), asciiInput(video)...)...)...)...)
 
-	c.input = inputSeq
-	output := c.Run()
+	inputIdx := 0
+	outputs := make([]int64, 0, 1000)
+	for {
+		res := c.Step(nil)
+		if res.Halted {
+			break
+		}
+		if res.NeedInput {
+			if inputIdx >= len(inputSeq) {
+				return "", fmt.Errorf("no input available")
+			}
+			val := inputSeq[inputIdx]
+			inputIdx++
+			res = c.Step(&val)
+			if res.Halted {
+				break
+			}
+			if res.Output != nil {
+				outputs = append(outputs, *res.Output)
+			}
+			continue
+		}
+		if res.Output != nil {
+			outputs = append(outputs, *res.Output)
+		}
+	}
+	if len(outputs) == 0 {
+		return "", fmt.Errorf("no output produced")
+	}
 
-	//for _, v := range output {
+	//for _, v := range outputs {
 	//	if v > 255 {
 	//		fmt.Println("Dust collected:", v)
 	//	} else {
@@ -94,7 +122,7 @@ func (d Day17) Part2(input string) (string, error) {
 	//	}
 	//}
 
-	return strconv.FormatInt(output[len(output)-1], 10), nil
+	return strconv.FormatInt(outputs[len(outputs)-1], 10), nil
 }
 
 func init() {
