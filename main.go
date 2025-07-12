@@ -2,7 +2,7 @@ package main
 
 import (
 	"aoc/solve"
-	_ "aoc/solve/2017"
+	_ "aoc/solve/2018"
 )
 
 func main() {
