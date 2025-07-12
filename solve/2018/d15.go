@@ -61,8 +61,59 @@ func parseGrid(input string, elfPower int) *Grid {
 	return &Grid{Walls: walls, Units: units}
 }
 
+func (g *Grid) findMove(start image.Point, targets map[image.Point]bool, occ map[image.Point]bool) *image.Point {
+	type node struct {
+		Pt   image.Point
+		Dist int
+	}
+	queue := make([]node, 0, 64) // Preallocate queue with a reasonable size
+	queue = append(queue, node{start, 0})
+	meta := map[image.Point]struct {
+		Dist int
+		Prev *image.Point
+	}{start: {0, nil}}
+
+	for i := 0; i < len(queue); i++ { // Use index-based iteration to avoid slice reallocation
+		cur := queue[i]
+		for _, nb := range nb4(cur.Pt) {
+			if g.Walls[nb] || occ[nb] {
+				continue
+			}
+			if m, ok := meta[nb]; !ok || m.Dist > cur.Dist+1 {
+				meta[nb] = struct {
+					Dist int
+					Prev *image.Point
+				}{cur.Dist + 1, &cur.Pt}
+				queue = append(queue, node{nb, cur.Dist + 1})
+			}
+		}
+	}
+
+	var closest *image.Point
+	minDist := int(^uint(0) >> 1) // Max int
+	for pt, m := range meta {
+		if targets[pt] && m.Dist < minDist {
+			minDist = m.Dist
+			closest = &pt
+		} else if targets[pt] && m.Dist == minDist {
+			if pt.Y < closest.Y || (pt.Y == closest.Y && pt.X < closest.X) {
+				closest = &pt
+			}
+		}
+	}
+
+	if closest == nil {
+		return nil
+	}
+
+	for meta[*closest].Dist > 1 {
+		closest = meta[*closest].Prev
+	}
+	return closest
+}
+
 func (g *Grid) occupied(exclude *Unit) map[image.Point]bool {
-	occ := make(map[image.Point]bool)
+	occ := make(map[image.Point]bool, len(g.Units))
 	for _, u := range g.Units {
 		if u.Alive && u != exclude {
 			occ[u.Pos] = true
@@ -74,7 +125,7 @@ func (g *Grid) occupied(exclude *Unit) map[image.Point]bool {
 func (g *Grid) play(elfDeath bool) (int, bool) {
 	rounds := 0
 	for {
-		sort.Slice(g.Units, func(i, j int) bool {
+		sort.SliceStable(g.Units, func(i, j int) bool { // Use stable sort to preserve order
 			a, b := g.Units[i], g.Units[j]
 			return a.Pos.Y < b.Pos.Y || (a.Pos.Y == b.Pos.Y && a.Pos.X < b.Pos.X)
 		})
@@ -97,7 +148,7 @@ func (g *Grid) play(elfDeath bool) (int, bool) {
 }
 
 func (g *Grid) move(u *Unit, elfDeath bool) bool {
-	var targets []*Unit
+	targets := make([]*Unit, 0, len(g.Units))
 	for _, t := range g.Units {
 		if t.Alive && t.Team != u.Team {
 			targets = append(targets, t)
@@ -121,7 +172,6 @@ func (g *Grid) move(u *Unit, elfDeath bool) bool {
 			u.Pos = *move
 		}
 	}
-	// Attack
 	var opponents []*Unit
 	for _, t := range targets {
 		for _, nb := range nb4(u.Pos) {
@@ -148,52 +198,6 @@ func (g *Grid) move(u *Unit, elfDeath bool) bool {
 		}
 	}
 	return false
-}
-
-func (g *Grid) findMove(start image.Point, targets map[image.Point]bool, occ map[image.Point]bool) *image.Point {
-	type node struct {
-		Pt   image.Point
-		Dist int
-		Prev *image.Point
-	}
-	queue := []node{{start, 0, nil}}
-	visited := map[image.Point]int{start: 0}
-	parents := map[image.Point]*image.Point{}
-	var found []node
-	for len(queue) > 0 {
-		cur := queue[0]
-		queue = queue[1:]
-		if targets[cur.Pt] {
-			found = append(found, cur)
-		}
-		for _, nb := range nb4(cur.Pt) {
-			if g.Walls[nb] || occ[nb] {
-				continue
-			}
-			if d, ok := visited[nb]; ok && d <= cur.Dist+1 {
-				continue
-			}
-			visited[nb] = cur.Dist + 1
-			parents[nb] = &cur.Pt
-			queue = append(queue, node{nb, cur.Dist + 1, &cur.Pt})
-		}
-	}
-	if len(found) == 0 {
-		return nil
-	}
-	sort.Slice(found, func(i, j int) bool {
-		a, b := found[i].Pt, found[j].Pt
-		if found[i].Dist == found[j].Dist {
-			return a.Y < b.Y || (a.Y == b.Y && a.X < b.X)
-		}
-		return found[i].Dist < found[j].Dist
-	})
-	// Backtrack to first step
-	dest := found[0].Pt
-	for parents[dest] != nil && *parents[dest] != start {
-		dest = *parents[dest]
-	}
-	return &dest
 }
 
 func nb4(p image.Point) []image.Point {
