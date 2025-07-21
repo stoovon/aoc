@@ -17,7 +17,7 @@ func (d Day6) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2018, Day: 6}
 }
 
-func parsePoints(input string) []image.Point {
+func (d Day6) parsePoints(input string) []image.Point {
 	lines := strings.Split(strings.TrimSpace(input), "\n")
 	var pts []image.Point
 	for _, line := range lines {
@@ -34,7 +34,7 @@ func manhattan(a, b image.Point) int {
 }
 
 func (d Day6) Part1(input string) (string, error) {
-	pts := parsePoints(input)
+	pts := d.parsePoints(input)
 	if len(pts) == 0 {
 		return "", errors.New("no input")
 	}
@@ -97,7 +97,7 @@ func (d Day6) Part1(input string) (string, error) {
 }
 
 func (d Day6) Part2(input string) (string, error) {
-	pts := parsePoints(input)
+	pts := d.parsePoints(input)
 	if len(pts) == 0 {
 		return "", errors.New("no input")
 	}

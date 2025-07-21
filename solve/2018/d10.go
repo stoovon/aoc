@@ -24,7 +24,7 @@ type point struct {
 	vx, vy int
 }
 
-func parsePoints(input string) []point {
+func (d Day10) parsePoints(input string) []point {
 	var points []point
 	for _, line := range strings.Split(strings.TrimSpace(input), "\n") {
 		m := lineRe.FindStringSubmatch(line)
@@ -108,13 +108,13 @@ func renderPoints(points []point) [][]int {
 }
 
 func (d Day10) Part1(input string) (string, error) {
-	points := parsePoints(input)
+	points := d.parsePoints(input)
 	bestPoints, _ := simulatePoints(points, 20000)
 	return grids.OCRWithWidth(renderPoints(bestPoints), 8), nil
 }
 
 func (d Day10) Part2(input string) (string, error) {
-	points := parsePoints(input)
+	points := d.parsePoints(input)
 	_, bestStep := simulatePoints(points, 20000)
 	return strconv.Itoa(bestStep), nil
 }
