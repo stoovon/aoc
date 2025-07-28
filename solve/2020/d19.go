@@ -32,32 +32,6 @@ type rule19 struct {
 	alts [][]int
 }
 
-func (d Day19) parseRules(lines []string) map[int]rule19 {
-	rules := make(map[int]rule19)
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		parts := strings.SplitN(line, ": ", 2)
-		idx, _ := strconv.Atoi(parts[0])
-		if strings.Contains(parts[1], "\"") {
-			rules[idx] = rule19{char: strings.Trim(parts[1], "\"")}
-		} else {
-			var alts [][]int
-			for _, alt := range strings.Split(parts[1], "|") {
-				var seq []int
-				for _, n := range strings.Fields(alt) {
-					v, _ := strconv.Atoi(n)
-					seq = append(seq, v)
-				}
-				alts = append(alts, seq)
-			}
-			rules[idx] = rule19{alts: alts}
-		}
-	}
-	return rules
-}
-
 func matchRule0(rules map[int]rule19, msg string) bool {
 	ends := matchRule(rules, 0, msg)
 	for _, e := range ends {

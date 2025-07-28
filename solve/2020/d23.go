@@ -12,20 +12,6 @@ func (d Day23) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2020, Day: 23}
 }
 
-func (d Day23) Part1(input string) (string, error) {
-	cups, _ := parseCups(input)
-	next := buildCupLinks(cups, len(cups))
-	res := playCupGame(next, cups[0], 100, false)
-	return res, nil
-}
-
-func (d Day23) Part2(input string) (string, error) {
-	cups, _ := parseCups(input)
-	total := 1000000
-	next := buildCupLinks(cups, total)
-	res := playCupGame(next, cups[0], 10000000, true)
-	return res, nil
-}
 // parseCups parses the input string into a slice of cup labels and returns the max label.
 func parseCups(input string) ([]int, int) {
 	input = strings.TrimSpace(input)
@@ -93,6 +79,21 @@ func playCupGame(next []int, current, moves int, part2 bool) string {
 		res = append(res, byte('0'+x))
 	}
 	return string(res)
+}
+
+func (d Day23) Part1(input string) (string, error) {
+	cups, _ := parseCups(input)
+	next := buildCupLinks(cups, len(cups))
+	res := playCupGame(next, cups[0], 100, false)
+	return res, nil
+}
+
+func (d Day23) Part2(input string) (string, error) {
+	cups, _ := parseCups(input)
+	total := 1000000
+	next := buildCupLinks(cups, total)
+	res := playCupGame(next, cups[0], 10000000, true)
+	return res, nil
 }
 
 func init() {
