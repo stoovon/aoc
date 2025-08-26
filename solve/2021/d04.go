@@ -21,7 +21,7 @@ type board struct {
 	marks [5][5]bool
 }
 
-func parseInput(input string) ([]int, []board, error) {
+func (d Day4) parseInput(input string) ([]int, []board, error) {
 	parts := strings.Split(strings.TrimSpace(input), "\n\n")
 	if len(parts) < 2 {
 		return nil, nil, errors.New("invalid input")
@@ -93,7 +93,7 @@ func unmarkedSum(b *board) int {
 }
 
 func (d Day4) Part1(input string) (string, error) {
-	draws, boards, err := parseInput(input)
+	draws, boards, err := d.parseInput(input)
 	if err != nil {
 		return "", err
 	}
@@ -110,7 +110,7 @@ func (d Day4) Part1(input string) (string, error) {
 }
 
 func (d Day4) Part2(input string) (string, error) {
-	draws, boards, err := parseInput(input)
+	draws, boards, err := d.parseInput(input)
 	if err != nil {
 		return "", err
 	}

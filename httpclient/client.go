@@ -89,10 +89,8 @@ func (c *Client) GetInput(year, day int) (string, error) {
 	return body, nil
 }
 
-func (c *Client) HasSolution(year, day, part int) bool {
-	_, found := c.cache.GetSolution(year, day, part)
-
-	return found
+func (c *Client) GetSolution(year, day, part int) (string, bool) {
+	return c.cache.GetSolution(year, day, part)
 }
 
 func (c *Client) SubmitAnswer(year, day, part int, answer string) (string, error) {

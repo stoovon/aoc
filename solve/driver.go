@@ -88,10 +88,6 @@ func (d *Driver) submitPart(input string, solver Solver, part int, fullCache boo
 		cache = false
 	}
 
-	if cache && d.client.HasSolution(coords.Year, coords.Day, part) {
-		return nil
-	}
-
 	solverFunc := solver.Part1
 	if part == 2 {
 		solverFunc = solver.Part2
@@ -100,6 +96,16 @@ func (d *Driver) submitPart(input string, solver Solver, part int, fullCache boo
 	solution, err := solverFunc(input)
 	if err != nil {
 		return fmt.Errorf("error solving part %d: %v", part, err)
+	}
+
+	if cache {
+		cachedSolution, found := d.client.GetSolution(coords.Year, coords.Day, part)
+		if found {
+			if solution != cachedSolution {
+				return fmt.Errorf("Computed solution for %d-%02d part %d no longer matches known-good solution", coords.Year, coords.Day, part)
+			}
+			return nil
+		}
 	}
 
 	response, err := d.client.SubmitAnswer(coords.Year, coords.Day, part, solution)
