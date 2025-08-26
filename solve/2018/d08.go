@@ -15,12 +15,12 @@ func (d Day8) Coords() solve.SolutionCoords {
 }
 
 func (d Day8) Part1(input string) (string, error) {
-	nums := parseInput(input)
+	nums := d.parseInput(input)
 	sum, _ := sumMetadata(nums, 0)
 	return strconv.Itoa(sum), nil
 }
 
-func parseInput(input string) []int {
+func (d Day8) parseInput(input string) []int {
 	fields := strings.Fields(input)
 	nums := make([]int, len(fields))
 	for i, f := range fields {
@@ -46,7 +46,7 @@ func sumMetadata(nums []int, pos int) (sum int, next int) {
 }
 
 func (d Day8) Part2(input string) (string, error) {
-	nums := parseInput(input)
+	nums := d.parseInput(input)
 	value, _ := nodeValue(nums, 0)
 	return strconv.Itoa(value), nil
 }

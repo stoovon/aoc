@@ -7,5 +7,5 @@ import (
 
 func main() {
 	driver := solve.NewDriver()
-	driver.SolveAll(true)
+	driver.SolveAll(false)
 }

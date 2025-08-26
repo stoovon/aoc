@@ -14,7 +14,7 @@ func (d Day22) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2024, Day: 22}
 }
 
-func parseInput(input string) (nums []int) {
+func (d Day22) parseInput(input string) (nums []int) {
 	lines := strings.Split(input, "\n")
 
 	for _, line := range lines {
@@ -34,7 +34,7 @@ func getNthSecretNumber(num int, n int) int {
 }
 
 func (d Day22) Part1(input string) (string, error) {
-	nums := parseInput(input)
+	nums := d.parseInput(input)
 	res := 0
 
 	for _, num := range nums {
@@ -83,7 +83,7 @@ func updateCache(num int, n int, cache map[window]int) (delBan []pair) {
 }
 
 func (d Day22) Part2(input string) (string, error) {
-	nums := parseInput(input)
+	nums := d.parseInput(input)
 	cache := make(map[window]int)
 	res := 0
 

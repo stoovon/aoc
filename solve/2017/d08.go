@@ -92,7 +92,3 @@ func (d Day8) Part2(input string) (string, error) {
 func init() {
 	solve.Register(Day8{})
 }
-
-func init() {
-	solve.Register(Day8{})
-}

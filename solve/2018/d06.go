@@ -140,7 +140,3 @@ func (d Day6) Part2(input string) (string, error) {
 func init() {
 	solve.Register(Day6{})
 }
-
-func init() {
-	solve.Register(Day6{})
-}

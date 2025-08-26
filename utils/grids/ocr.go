@@ -109,12 +109,12 @@ X X
 X  X 
 `,
 		"U": `
-X  X
-X  X
-X  X
-X  X
-X  X
- XX 
+X  X 
+X  X 
+X  X 
+X  X 
+X  X 
+ XX  
 `,
 		"Y": `
 X   X
@@ -148,16 +148,16 @@ X    X
 XXXXX   
 `,
 		"C": `
- XXXX 
-X    X
-X     
-X     
-X     
-X     
-X     
-X     
-X    X
- XXXX 
+ XXXX   
+X    X  
+X       
+X       
+X       
+X       
+X       
+X       
+X    X  
+ XXXX   
 `,
 		"G": `
  XXXX   
@@ -261,9 +261,13 @@ func OCRWithWidth(screen [][]int, letterWidth int) string {
 		letterRender := ""
 		for row := 0; row < len(screen); row++ {
 			line := ""
-			for c := col; c < col+letterWidth && c < len(screen[0]); c++ {
-				if screen[row][c] == 1 {
-					line += "X"
+			for c := col; c < col+letterWidth; c++ {
+				if c < len(screen[0]) {
+					if screen[row][c] == 1 {
+						line += "X"
+					} else {
+						line += " "
+					}
 				} else {
 					line += " "
 				}

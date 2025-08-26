@@ -33,7 +33,7 @@ func applyMask(value int64, mask string) int64 {
 	return result
 }
 
-func parseInput(input string) ([]string, *regexp.Regexp, *regexp.Regexp) {
+func (d Day14) parseInput(input string) ([]string, *regexp.Regexp, *regexp.Regexp) {
 	lines := strings.Split(strings.TrimSpace(input), "\n")
 
 	maskPattern := regexp.MustCompile(`^mask = ([X01]{36})$`)
@@ -51,7 +51,7 @@ func sumMemory(memory map[int64]int64) string {
 }
 
 func (d Day14) Part1(input string) (string, error) {
-	lines, maskPattern, memPattern := parseInput(input)
+	lines, maskPattern, memPattern := d.parseInput(input)
 
 	memory := make(map[int64]int64)
 	var currentMask string
@@ -143,7 +143,7 @@ func expandFloatingBits(template []rune) []int64 {
 }
 
 func (d Day14) Part2(input string) (string, error) {
-	lines, maskPattern, memPattern := parseInput(input)
+	lines, maskPattern, memPattern := d.parseInput(input)
 
 	memory := make(map[int64]int64)
 	var currentMask string

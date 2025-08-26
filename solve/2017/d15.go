@@ -20,7 +20,7 @@ const (
 	mod     = 2147483647
 )
 
-func parseInput(input string) (int, int, error) {
+func (d Day15) parseInput(input string) (int, int, error) {
 	var startA, startB int
 	_, err := fmt.Sscanf(input, "Generator A starts with %d\nGenerator B starts with %d", &startA, &startB)
 	if err != nil {
@@ -56,7 +56,7 @@ func judgeCount(startA, startB, multipleA, multipleB, pairs int) int {
 }
 
 func (d Day15) Part1(input string) (string, error) {
-	startA, startB, err := parseInput(input)
+	startA, startB, err := d.parseInput(input)
 	if err != nil {
 		return "", err
 	}
@@ -65,7 +65,7 @@ func (d Day15) Part1(input string) (string, error) {
 }
 
 func (d Day15) Part2(input string) (string, error) {
-	startA, startB, err := parseInput(input)
+	startA, startB, err := d.parseInput(input)
 	if err != nil {
 		return "", err
 	}
