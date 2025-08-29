@@ -53,7 +53,7 @@ func (d Day19) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2021, Day: 19}
 }
 
-func parseInput(input string) []Scanner {
+func (d Day19) parseInput(input string) []Scanner {
 	blocks := strings.Split(strings.TrimSpace(input), "\n\n")
 	scanners := make([]Scanner, 0, len(blocks))
 	for _, block := range blocks {
@@ -171,7 +171,7 @@ func alignScanners(scanners []Scanner) (map[string]Vec3, map[int]Vec3, error) {
 }
 
 func (d Day19) Part1(input string) (string, error) {
-	scanners := parseInput(input)
+	scanners := d.parseInput(input)
 	beaconSet, _, err := alignScanners(scanners)
 	if err != nil {
 		return err.Error(), nil
@@ -191,7 +191,7 @@ func abs(x int) int {
 }
 
 func (d Day19) Part2(input string) (string, error) {
-	scanners := parseInput(input)
+	scanners := d.parseInput(input)
 	_, scannerPos, err := alignScanners(scanners)
 	if err != nil {
 		return err.Error(), nil
