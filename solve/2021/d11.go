@@ -13,7 +13,7 @@ func (d Day11) Coords() solve.SolutionCoords {
 }
 
 func (d Day11) Part1(input string) (string, error) {
-	grid, err := parseGrid(input)
+	grid, err := d.parseGrid(input)
 	if err != nil {
 		return "", err
 	}
@@ -24,7 +24,7 @@ func (d Day11) Part1(input string) (string, error) {
 	return fmt.Sprintf("%d", totalFlashes), nil
 }
 
-func parseGrid(input string) ([][]int, error) {
+func (d Day11) parseGrid(input string) ([][]int, error) {
 	lines := make([]string, 0)
 	for _, line := range splitLines(input) {
 		if len(line) == 0 {
@@ -118,7 +118,7 @@ func step(grid [][]int) int {
 }
 
 func (d Day11) Part2(input string) (string, error) {
-	grid, err := parseGrid(input)
+	grid, err := d.parseGrid(input)
 	if err != nil {
 		return "", err
 	}
