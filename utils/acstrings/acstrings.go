@@ -22,3 +22,15 @@ func Lines(input string) []string {
 	}
 	return out
 }
+
+// ExtractInts extracts all integers from a string.
+func ExtractInts(s string) []int {
+	fields := strings.FieldsFunc(s, func(r rune) bool {
+		return r < '0' || r > '9'
+	})
+	result := make([]int, len(fields))
+	for i, field := range fields {
+		result[i] = MustInt(field)
+	}
+	return result
+}

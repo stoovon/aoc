@@ -2,6 +2,7 @@ package solve2022
 
 import (
 	"aoc/solve"
+	"aoc/utils/maths"
 	"fmt"
 	"strconv"
 	"strings"
@@ -42,9 +43,9 @@ func (d Day9) Part1(input string) (string, error) {
 
 			diffX := head[0] - tail[0]
 			diffY := head[1] - tail[1]
-			if abs(diffX) > 1 || abs(diffY) > 1 {
-				tail[0] += sign(diffX)
-				tail[1] += sign(diffY)
+			if maths.Abs(diffX) > 1 || maths.Abs(diffY) > 1 {
+				tail[0] += maths.Sign(diffX)
+				tail[1] += maths.Sign(diffY)
 				visited[tail] = true
 			}
 		}
@@ -83,9 +84,9 @@ func (d Day9) Part2(input string) (string, error) {
 			for j := 1; j < ropeLength; j++ {
 				diffX := rope[j-1][0] - rope[j][0]
 				diffY := rope[j-1][1] - rope[j][1]
-				if abs(diffX) > 1 || abs(diffY) > 1 {
-					rope[j][0] += sign(diffX)
-					rope[j][1] += sign(diffY)
+				if maths.Abs(diffX) > 1 || maths.Abs(diffY) > 1 {
+					rope[j][0] += maths.Sign(diffX)
+					rope[j][1] += maths.Sign(diffY)
 				}
 			}
 
@@ -94,22 +95,6 @@ func (d Day9) Part2(input string) (string, error) {
 	}
 
 	return strconv.Itoa(len(visited)), nil
-}
-
-func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-
-func sign(x int) int {
-	if x < 0 {
-		return -1
-	} else if x > 0 {
-		return 1
-	}
-	return 0
 }
 
 func init() {
