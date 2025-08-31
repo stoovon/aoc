@@ -14,7 +14,7 @@ func (d Day5) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2022, Day: 5}
 }
 
-func parseInput(input string) ([][]rune, []string) {
+func (d Day5) parseInput(input string) ([][]rune, []string) {
 	parts := strings.Split(input, "\n\n")
 	stacksStr, procedures := parts[0], parts[1]
 
@@ -97,12 +97,12 @@ func moveCratesPart2(stacks [][]rune, cratesToMove, fromStack, toStack int) erro
 }
 
 func (d Day5) Part1(input string) (string, error) {
-	stacks, procedures := parseInput(input)
+	stacks, procedures := d.parseInput(input)
 	return executeProcedures(stacks, procedures, moveCratesPart1)
 }
 
 func (d Day5) Part2(input string) (string, error) {
-	stacks, procedures := parseInput(input)
+	stacks, procedures := d.parseInput(input)
 	return executeProcedures(stacks, procedures, moveCratesPart2)
 }
 
