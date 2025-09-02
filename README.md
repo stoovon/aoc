@@ -1,6 +1,6 @@
 Advent of Code Solutions in Go
 
-Slowly working towards 500⭐️.
+Achieved 500⭐️
 
 ## Running
 
