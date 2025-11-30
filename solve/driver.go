@@ -82,14 +82,17 @@ func (d *Driver) Solve(solver Solver, fullCache bool) error {
 func (d *Driver) submitPart(input string, solver Solver, part int, fullCache bool) error {
 	coords := solver.Coords()
 
-	cache := fullCache
-	if coords.NoCaching {
-		cache = false
-	}
-
 	solverFunc := solver.Part1
 	if part == 2 {
 		solverFunc = solver.Part2
+	}
+
+	if fullCache && !coords.NoCaching {
+		cachedSolution, found := d.client.GetSolution(coords.Year, coords.Day, part)
+		if found {
+			fmt.Printf("Part %d: %s (cached)\n", part, cachedSolution)
+			return nil
+		}
 	}
 
 	solution, err := solverFunc(input)
@@ -97,14 +100,12 @@ func (d *Driver) submitPart(input string, solver Solver, part int, fullCache boo
 		return fmt.Errorf("error solving part %d: %v", part, err)
 	}
 
-	if cache {
-		cachedSolution, found := d.client.GetSolution(coords.Year, coords.Day, part)
-		if found {
-			if solution != cachedSolution {
-				return fmt.Errorf("Computed solution for %d-%02d part %d no longer matches known-good solution", coords.Year, coords.Day, part)
-			}
-			return nil
+	cachedSolution, found := d.client.GetSolution(coords.Year, coords.Day, part)
+	if found {
+		if solution != cachedSolution {
+			return fmt.Errorf("computed solution for %d-%02d part %d no longer matches known-good solution", coords.Year, coords.Day, part)
 		}
+		return nil
 	}
 
 	response, err := d.client.SubmitAnswer(coords.Year, coords.Day, part, solution)
@@ -124,14 +125,14 @@ func (d *Driver) submitPart(input string, solver Solver, part int, fullCache boo
 			return fmt.Errorf("error marking answer as incorrect: %v", err)
 		}
 
-		return fmt.Errorf("Incorrect answer for part %d.\n", part)
+		return fmt.Errorf("incorrect answer for part %d", part)
 	} else if strings.HasPrefix(response, "Please don't repeatedly") {
-		return fmt.Errorf("Rate limit exceeded for part %d.\n", part)
+		return fmt.Errorf("rate limit exceeded for part %d", part)
 	} else if response == httpclient.NotKnownGood {
 		return errors.New(response)
 	} else {
 		// To avoid spamming the AoC servers, we should exit if anything is unexpected.
-		log.Fatalf("Unexpected response for part %d: %s\n", part, response)
+		log.Fatalf("unexpected response for part %d: %s", part, response)
 	}
 
 	return nil
