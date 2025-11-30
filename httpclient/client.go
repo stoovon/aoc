@@ -190,6 +190,14 @@ func (c *Client) post(url string, body *bytes.Buffer) string {
 	req.AddCookie(&sessionCookie)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
+	userAgent := os.Getenv("USER_AGENT")
+	if userAgent == "" {
+		panic("no USER_AGENT env var")
+	}
+
+	// Set user-agent per https://www.reddit.com/r/adventofcode/comments/1pa472d
+	req.Header.Set("User-Agent", userAgent)
+
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Fatalf("making request: %s", err)

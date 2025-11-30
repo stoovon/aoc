@@ -88,9 +88,8 @@ func (d *Driver) submitPart(input string, solver Solver, part int, fullCache boo
 	}
 
 	if fullCache && !coords.NoCaching {
-		cachedSolution, found := d.client.GetSolution(coords.Year, coords.Day, part)
+		_, found := d.client.GetSolution(coords.Year, coords.Day, part)
 		if found {
-			fmt.Printf("Part %d: %s (cached)\n", part, cachedSolution)
 			return nil
 		}
 	}
