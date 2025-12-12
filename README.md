@@ -1,6 +1,6 @@
 Advent of Code Solutions in Go
 
-Achieved 500⭐️
+Achieved 524⭐️
 
 ## Running
 
