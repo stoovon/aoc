@@ -92,12 +92,23 @@ func armourFromEffects(effects []effect) int {
 }
 
 func (s *state) transitions() []*state {
+	// Hard mode's penalty happens before start-of-turn effects.
+	if s.hardMode && s.hp <= 1 {
+		return nil
+	}
 	hp, mana, bossHP, effects := s.processEffects()
 	if s.hardMode {
 		hp--
 	}
 	if hp <= 0 {
 		return nil
+	}
+	if bossHP <= 0 {
+		return []*state{{
+			hp: hp, mana: mana, bossHP: bossHP, bossDamage: s.bossDamage,
+			manaSpent: s.manaSpent, effects: effects, hardMode: s.hardMode,
+			parent: s,
+		}}
 	}
 
 	var nextStates []*state
