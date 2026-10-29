@@ -1,16 +1,17 @@
 package solve2015
 
 import (
+	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
 	"aoc/solve"
-	"aoc/utils/maths"
 )
 
-type Day9 struct {
-}
+type Day9 struct{}
 
 func (d Day9) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2015, Day: 9}
@@ -44,64 +45,92 @@ func (d Day9) parseInput(input string) map[string]map[string]int {
 	return graph
 }
 
-func generatePermutations(nodes []string) [][]string {
-	var helper func([]string, int)
-	var result [][]string
+type routeRange struct {
+	shortest, longest int
+	reachable         bool
+}
 
-	helper = func(arr []string, n int) {
-		if n == 1 {
-			perm := make([]string, len(arr))
-			copy(perm, arr)
-			result = append(result, perm)
-			return
+func routeExtremes(graph map[string]map[string]int) (int, int, error) {
+	nodes := slices.Sorted(maps.Keys(graph))
+	n := len(nodes)
+	if n == 0 {
+		return 0, 0, fmt.Errorf("route graph has no cities")
+	}
+	// Subset DP remains exponential; bound its table before shifting or allocating.
+	const maxEntries = 1 << 20
+	if n >= 20 || (1<<n) > maxEntries/n {
+		return 0, 0, fmt.Errorf("route graph exceeds the subset table budget")
+	}
+	subsets := 1 << n
+	distances := make([][]int, n)
+	for from, name := range nodes {
+		distances[from] = make([]int, n)
+		for to, other := range nodes {
+			distance, connected := graph[name][other]
+			if !connected {
+				distance = -1
+			}
+			distances[from][to] = distance
 		}
-
-		for i := 0; i < n; i++ {
-			helper(arr, n-1)
-			if n%2 == 1 {
-				arr[0], arr[n-1] = arr[n-1], arr[0]
-			} else {
-				arr[i], arr[n-1] = arr[n-1], arr[i]
+	}
+	table := make([]routeRange, subsets*n)
+	for city := range n {
+		table[(1<<city)*n+city].reachable = true
+	}
+	for visited := 1; visited < subsets; visited++ {
+		for last := range n {
+			current := table[visited*n+last]
+			if !current.reachable {
+				continue
+			}
+			for next, distance := range distances[last] {
+				if visited&(1<<next) != 0 || distance < 0 {
+					continue
+				}
+				entry := &table[(visited|1<<next)*n+next]
+				shortest := current.shortest + distance
+				longest := current.longest + distance
+				if !entry.reachable {
+					*entry = routeRange{shortest: shortest, longest: longest, reachable: true}
+				} else {
+					entry.shortest = min(entry.shortest, shortest)
+					entry.longest = max(entry.longest, longest)
+				}
 			}
 		}
 	}
-
-	helper(nodes, len(nodes))
-	return result
-}
-
-func calculateDistances(graph map[string]map[string]int, permutations [][]string) []int {
-	var distances []int
-
-	for _, path := range permutations {
-		totalDistance := 0
-		for i := 0; i < len(path)-1; i++ {
-			totalDistance += graph[path[i]][path[i+1]]
+	var answer routeRange
+	for _, entry := range table[(subsets-1)*n:] {
+		if !entry.reachable {
+			continue
 		}
-		distances = append(distances, totalDistance)
+		if !answer.reachable {
+			answer = entry
+		} else {
+			answer.shortest = min(answer.shortest, entry.shortest)
+			answer.longest = max(answer.longest, entry.longest)
+		}
 	}
-
-	return distances
-}
-
-func (d Day9) getAllDistances(input string) []int {
-	graph := d.parseInput(input)
-
-	nodes := make([]string, 0, len(graph))
-	for node := range graph {
-		nodes = append(nodes, node)
+	if !answer.reachable {
+		return 0, 0, fmt.Errorf("no route visits every city exactly once")
 	}
-
-	permutations := generatePermutations(nodes)
-	return calculateDistances(graph, permutations)
+	return answer.shortest, answer.longest, nil
 }
 
 func (d Day9) Part1(input string) (string, error) {
-	return strconv.Itoa(maths.Min(d.getAllDistances(input)...)), nil
+	shortest, _, err := routeExtremes(d.parseInput(input))
+	if err != nil {
+		return "", err
+	}
+	return strconv.Itoa(shortest), nil
 }
 
 func (d Day9) Part2(input string) (string, error) {
-	return strconv.Itoa(maths.Max(d.getAllDistances(input)...)), nil
+	_, longest, err := routeExtremes(d.parseInput(input))
+	if err != nil {
+		return "", err
+	}
+	return strconv.Itoa(longest), nil
 }
 
 func init() {
