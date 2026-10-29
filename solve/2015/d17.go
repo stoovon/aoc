@@ -1,92 +1,89 @@
 package solve2015
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
 	"aoc/solve"
 )
 
-type Day17 struct {
-}
+type Day17 struct{}
 
 func (d Day17) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2015, Day: 17}
 }
 
-func countCombinations(containerSizes []int, capacity int) int {
-	combinations := 0
-	n := len(containerSizes)
-
-	for i := 0; i < (1 << n); i++ {
-		stored := 0
-		for j := 0; j < n; j++ {
-			if i&(1<<j) != 0 {
-				stored += containerSizes[j]
-			}
-		}
-		if stored == capacity {
-			combinations++
-		}
-	}
-	return combinations
+type containerCounts struct {
+	totalWays, minContainers, minWays int
 }
 
-func countMinimalCombinations(containerSizes []int, targetSum int) int {
-	n := len(containerSizes)
-	for k := 1; k <= n; k++ {
-		count := 0
-		combinations := generateCombinations(containerSizes, k)
-		for _, combination := range combinations {
-			sum := 0
-			for _, value := range combination {
-				sum += value
-			}
-			if sum == targetSum {
-				count++
-			}
+func countContainerArrangements(sizes []int, target int) (containerCounts, error) {
+	if target < 0 || target >= 1<<20 {
+		return containerCounts{}, fmt.Errorf("target exceeds the volume table budget")
+	}
+	table := make([]containerCounts, target+1)
+	table[0] = containerCounts{totalWays: 1, minWays: 1}
+	maxCount := int(^uint(0) >> 1)
+	for _, size := range sizes {
+		if size < 0 {
+			return containerCounts{}, fmt.Errorf("container size must be nonnegative")
 		}
-		if count > 0 {
-			return count
+		// Descending volumes prevent reuse; equal-sized containers remain distinct.
+		for volume := target; volume >= size; volume-- {
+			source := table[volume-size]
+			if source.totalWays == 0 {
+				continue
+			}
+			entry := &table[volume]
+			if source.totalWays > maxCount-entry.totalWays {
+				return containerCounts{}, fmt.Errorf("container combination count overflows int")
+			}
+			entry.totalWays += source.totalWays
+			used := source.minContainers + 1
+			if entry.minWays == 0 || used < entry.minContainers {
+				entry.minContainers, entry.minWays = used, source.minWays
+			} else if used == entry.minContainers {
+				entry.minWays += source.minWays
+			}
 		}
 	}
-	return 0
+	return table[target], nil
 }
 
-func generateCombinations(arr []int, k int) [][]int {
-	var result [][]int
-	var helper func(start int, comb []int)
-	helper = func(start int, comb []int) {
-		if len(comb) == k {
-			tmp := make([]int, k)
-			copy(tmp, comb)
-			result = append(result, tmp)
-			return
-		}
-		for i := start; i < len(arr); i++ {
-			helper(i+1, append(comb, arr[i]))
-		}
+func (d Day17) arrangements(input string) (containerCounts, error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return containerCounts{}, fmt.Errorf("container list is empty")
 	}
-	helper(0, []int{})
-	return result
+	var sizes []int
+	for index, line := range strings.Split(input, "\n") {
+		size, err := strconv.Atoi(strings.TrimSpace(line))
+		if err != nil {
+			return containerCounts{}, fmt.Errorf("line %d: invalid container size: %w", index+1, err)
+		}
+		if size < 0 {
+			return containerCounts{}, fmt.Errorf("line %d: container size must be nonnegative", index+1)
+		}
+		sizes = append(sizes, size)
+	}
+	return countContainerArrangements(sizes, 150)
 }
 
 func (d Day17) Part1(input string) (string, error) {
-	lines := strings.Split(strings.TrimSpace(input), "\n")
-	containerSizes := make([]int, len(lines))
-	for i, line := range lines {
-		containerSizes[i], _ = strconv.Atoi(line)
+	counts, err := d.arrangements(input)
+	if err != nil {
+		return "", err
 	}
-	return strconv.Itoa(countCombinations(containerSizes, 150)), nil
+	return strconv.Itoa(counts.totalWays), nil
 }
 
 func (d Day17) Part2(input string) (string, error) {
-	lines := strings.Split(strings.TrimSpace(input), "\n")
-	containerSizes := make([]int, len(lines))
-	for i, line := range lines {
-		containerSizes[i], _ = strconv.Atoi(line)
+	counts, err := d.arrangements(input)
+	if err != nil {
+		return "", err
 	}
-	return strconv.Itoa(countMinimalCombinations(containerSizes, 150)), nil
+	return strconv.Itoa(counts.minWays), nil
 }
 
 func init() {
