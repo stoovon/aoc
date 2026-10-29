@@ -6,16 +6,15 @@ import (
 	"aoc/solve"
 )
 
-type Day9 struct {
-}
+type Day9 struct{}
 
 func (d Day9) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2024, Day: 9}
 }
 
-type file struct {
-	ID   int
-	Size int
+type day9Span struct {
+	Start int
+	Size  int
 }
 
 type day9Disk struct {
@@ -40,16 +39,12 @@ func (d Day9) parseDiskMap(input string) ([]int, []int) {
 
 func (d Day9) createInitialDiskState(files, spaces []int) day9Disk {
 	var blocks []int
-	fileID := 0
-
-	for i := 0; i < len(files); i++ {
-		for j := 0; j < files[i]; j++ {
+	for fileID, size := range files {
+		for range size {
 			blocks = append(blocks, fileID)
 		}
-		fileID++
-
-		if i < len(spaces) {
-			for j := 0; j < spaces[i]; j++ {
+		if fileID < len(spaces) {
+			for range spaces[fileID] {
 				blocks = append(blocks, -1)
 			}
 		}
@@ -58,28 +53,21 @@ func (d Day9) createInitialDiskState(files, spaces []int) day9Disk {
 	return day9Disk{Blocks: blocks}
 }
 
-func (d *day9Disk) findFirstFreeSpace() int {
-	for i, block := range d.Blocks {
-		if block == -1 {
-			return i
+func (d *day9Disk) compactBlocks() {
+	left, right := 0, len(d.Blocks)-1
+	for left < right {
+		for left < right && d.Blocks[left] != -1 {
+			left++
+		}
+		for left < right && d.Blocks[right] == -1 {
+			right--
+		}
+		if left < right {
+			d.Blocks[left], d.Blocks[right] = d.Blocks[right], d.Blocks[left]
+			left++
+			right--
 		}
 	}
-	return -1
-}
-
-func (d *day9Disk) findLastFileBlock() int {
-	for i := len(d.Blocks) - 1; i >= 0; i-- {
-		if d.Blocks[i] != -1 {
-			return i
-		}
-	}
-	return -1
-}
-
-func (d *day9Disk) moveOneBlock(fromIndex, toIndex int) {
-	fileID := d.Blocks[fromIndex]
-	d.Blocks[fromIndex] = -1
-	d.Blocks[toIndex] = fileID
 }
 
 func (d *day9Disk) calculateChecksum() int {
@@ -92,128 +80,66 @@ func (d *day9Disk) calculateChecksum() int {
 	return cs
 }
 
-func (d *day9Disk) findFileSize(pos int) int {
-	if pos < 0 || pos >= len(d.Blocks) || d.Blocks[pos] == -1 {
-		return 0
-	}
-
-	fileID := d.Blocks[pos]
-	start := pos
-	for start >= 0 && d.Blocks[start] == fileID {
-		start--
-	}
-	start++
-
-	end := pos
-	for end < len(d.Blocks) && d.Blocks[end] == fileID {
-		end++
-	}
-
-	return end - start
-}
-
-func (d *day9Disk) findFileStart(pos int) int {
-	if pos < 0 || pos >= len(d.Blocks) || d.Blocks[pos] == -1 {
-		return -1
-	}
-
-	fileID := d.Blocks[pos]
-	start := pos
-	for start >= 0 && d.Blocks[start] == fileID {
-		start--
-	}
-	return start + 1
-}
-
-func (d *day9Disk) findFreeSpaceSize(pos int) int {
-	size := 0
-	for i := pos; i < len(d.Blocks) && d.Blocks[i] == -1; i++ {
-		size++
-	}
-	return size
-}
-
-func (d *day9Disk) moveWholeFile(fromIndex, toIndex, size int) {
-	fileID := d.Blocks[fromIndex]
-
-	for i := 0; i < size; i++ {
-		d.Blocks[fromIndex+i] = -1
-	}
-
-	for i := 0; i < size; i++ {
-		d.Blocks[toIndex+i] = fileID
-	}
-}
-
-func (d Day9) compactDisk(diskMap string, part int) int {
-	files, spaces := d.parseDiskMap(diskMap)
-	disk := d.createInitialDiskState(files, spaces)
-
-	if part == 1 {
-		for {
-			freeSpace := disk.findFirstFreeSpace()
-			if freeSpace == -1 {
-				break
+func (d Day9) createFileSpans(sizes, spaces []int) ([]day9Span, []day9Span) {
+	files := make([]day9Span, len(sizes))
+	gaps := make([]day9Span, 0, len(spaces))
+	position := 0
+	for id, size := range sizes {
+		files[id] = day9Span{Start: position, Size: size}
+		position += size
+		if id < len(spaces) && spaces[id] > 0 {
+			// Zero-length files do not separate adjacent gaps.
+			if last := len(gaps) - 1; last >= 0 && gaps[last].Start+gaps[last].Size == position {
+				gaps[last].Size += spaces[id]
+			} else {
+				gaps = append(gaps, day9Span{Start: position, Size: spaces[id]})
 			}
-
-			lastBlock := disk.findLastFileBlock()
-			if lastBlock == -1 || lastBlock <= freeSpace {
-				break
-			}
-
-			disk.moveOneBlock(lastBlock, freeSpace)
-		}
-	} else {
-		// Part 2: Move whole files in decreasing file ID order
-		maxFileID := -1
-		for _, block := range disk.Blocks {
-			if block > maxFileID {
-				maxFileID = block
-			}
-		}
-
-		for fileID := maxFileID; fileID >= 0; fileID-- {
-			var filePos int = -1
-			for i := len(disk.Blocks) - 1; i >= 0; i-- {
-				if disk.Blocks[i] == fileID {
-					filePos = disk.findFileStart(i)
-					break
-				}
-			}
-
-			if filePos == -1 {
-				continue
-			}
-
-			fileSize := disk.findFileSize(filePos)
-
-			var bestFreeSpace int = -1
-			for i := 0; i < filePos; i++ {
-				if disk.Blocks[i] == -1 {
-					freeSize := disk.findFreeSpaceSize(i)
-					if freeSize >= fileSize {
-						bestFreeSpace = i
-						break
-					}
-					i += freeSize - 1
-				}
-			}
-
-			if bestFreeSpace != -1 && bestFreeSpace < filePos {
-				disk.moveWholeFile(filePos, bestFreeSpace, fileSize)
-			}
+			position += spaces[id]
 		}
 	}
+	return files, gaps
+}
 
-	return disk.calculateChecksum()
+func compactDay9Files(files, gaps []day9Span) {
+	// Freed locations are right of every unprocessed file. Original gaps only
+	// shrink, so each size's cursor can permanently skip undersized gaps.
+	var nextGap [10]int
+	for id := len(files) - 1; id >= 0; id-- {
+		file := &files[id]
+		if file.Size == 0 {
+			continue
+		}
+		gapIndex := nextGap[file.Size]
+		for gapIndex < len(gaps) && gaps[gapIndex].Size < file.Size {
+			gapIndex++
+		}
+		nextGap[file.Size] = gapIndex
+		if gapIndex == len(gaps) || gaps[gapIndex].Start >= file.Start {
+			continue
+		}
+		gap := &gaps[gapIndex]
+		file.Start = gap.Start
+		gap.Start += file.Size
+		gap.Size -= file.Size
+	}
 }
 
 func (d Day9) Part1(input string) (string, error) {
-	return strconv.Itoa(d.compactDisk(input, 1)), nil
+	files, spaces := d.parseDiskMap(input)
+	disk := d.createInitialDiskState(files, spaces)
+	disk.compactBlocks()
+	return strconv.Itoa(disk.calculateChecksum()), nil
 }
 
 func (d Day9) Part2(input string) (string, error) {
-	return strconv.Itoa(d.compactDisk(input, 2)), nil
+	sizes, spaces := d.parseDiskMap(input)
+	files, gaps := d.createFileSpans(sizes, spaces)
+	compactDay9Files(files, gaps)
+	checksum := 0
+	for id, file := range files {
+		checksum += id * (file.Start*file.Size + file.Size*(file.Size-1)/2)
+	}
+	return strconv.Itoa(checksum), nil
 }
 
 func init() {

@@ -2,3 +2,9 @@
 .idea
 *.nogo
 .vscode/
+
+# Keep local puzzle/example fixtures and answers out of version control.
+input.txt
+input-spec*.txt
+example.txt
+example-spec*.txt
