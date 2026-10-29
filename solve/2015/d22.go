@@ -2,6 +2,7 @@ package solve2015
 
 import (
 	"container/heap"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -9,8 +10,7 @@ import (
 	"aoc/utils/queues"
 )
 
-type Day22 struct {
-}
+type Day22 struct{}
 
 func (d Day22) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2015, Day: 22}
@@ -43,8 +43,6 @@ type state struct {
 	manaSpent  int
 	effects    []effect
 	hardMode   bool
-	parent     *state
-	spellCast  string
 }
 
 type effect struct {
@@ -54,16 +52,12 @@ type effect struct {
 
 func (s *state) processEffects() (int, int, int, []effect) {
 	hp, mana, bossHP := s.hp, s.mana, s.bossHP
-	armour := 0
 	var remainingEffects []effect
 
 	for _, currentEffect := range s.effects {
 		hp += currentEffect.spell.healing
 		mana += currentEffect.spell.mana
 		bossHP -= currentEffect.spell.damage
-		if currentEffect.spell.armour > armour {
-			armour = currentEffect.spell.armour
-		}
 		if currentEffect.turns > 1 {
 			remainingEffects = append(remainingEffects, effect{currentEffect.turns - 1, currentEffect.spell})
 		}
@@ -107,7 +101,6 @@ func (s *state) transitions() []*state {
 		return []*state{{
 			hp: hp, mana: mana, bossHP: bossHP, bossDamage: s.bossDamage,
 			manaSpent: s.manaSpent, effects: effects, hardMode: s.hardMode,
-			parent: s,
 		}}
 	}
 
@@ -123,10 +116,8 @@ func (s *state) transitions() []*state {
 			bossHP:     bossHP,
 			bossDamage: s.bossDamage,
 			manaSpent:  s.manaSpent + spell.cost,
-			effects:    append([]effect{}, effects...),
+			effects:    slices.Clone(effects),
 			hardMode:   s.hardMode,
-			parent:     s,
-			spellCast:  spell.name,
 		}
 
 		if spell.effect {
@@ -163,23 +154,49 @@ func (p *pqItem) Score() int {
 	return p.priority
 }
 
-func searchAStar(start *state) *state {
+type battleKey struct {
+	hp, mana, bossHP, bossDamage int
+	shield, poison, recharge     int
+	hardMode                     bool
+}
+
+func (s *state) key() battleKey {
+	key := battleKey{hp: s.hp, mana: s.mana, bossHP: s.bossHP, bossDamage: s.bossDamage, hardMode: s.hardMode}
+	for _, effect := range s.effects {
+		switch effect.spell.name {
+		case "Shield":
+			key.shield = effect.turns
+		case "Poison":
+			key.poison = effect.turns
+		case "Recharge":
+			key.recharge = effect.turns
+		}
+	}
+	return key
+}
+
+func searchMinMana(start *state) *state {
 	openSet := &queues.PriorityQueue[*pqItem]{}
 	heap.Init(openSet)
 	heap.Push(openSet, &pqItem{value: start, priority: start.manaSpent})
-	closedSet := make(map[*state]bool)
+	bestCost := map[battleKey]int{start.key(): start.manaSpent}
 
 	for openSet.Len() > 0 {
 		current := heap.Pop(openSet).(*pqItem).value
+		if current.manaSpent != bestCost[current.key()] {
+			continue
+		}
 		if current.bossHP <= 0 {
 			return current
 		}
 
-		closedSet[current] = true
 		for _, next := range current.transitions() {
-			if closedSet[next] {
+			key := next.key()
+			if cost, seen := bestCost[key]; seen && cost <= next.manaSpent {
 				continue
 			}
+			// Equal battles have identical futures; only their cheapest arrival matters.
+			bestCost[key] = next.manaSpent
 			heap.Push(openSet, &pqItem{value: next, priority: next.manaSpent})
 		}
 	}
@@ -197,14 +214,14 @@ func (d Day22) parseInput(input string) (int, int) {
 func (d Day22) Part1(input string) (string, error) {
 	bossHP, bossDamage := d.parseInput(input)
 	start := &state{hp: 50, mana: 500, bossHP: bossHP, bossDamage: bossDamage}
-	end := searchAStar(start)
+	end := searchMinMana(start)
 	return strconv.Itoa(end.manaSpent), nil
 }
 
 func (d Day22) Part2(input string) (string, error) {
 	bossHP, bossDamage := d.parseInput(input)
 	start := &state{hp: 50, mana: 500, bossHP: bossHP, bossDamage: bossDamage, hardMode: true}
-	end := searchAStar(start)
+	end := searchMinMana(start)
 	return strconv.Itoa(end.manaSpent), nil
 }
 
