@@ -1,6 +1,7 @@
 package solve2024
 
 import (
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -8,129 +9,121 @@ import (
 	"aoc/solve"
 )
 
-type Day23 struct {
+type Day23 struct{}
+
+func (d Day23) Coords() solve.SolutionCoords { return solve.SolutionCoords{Year: 2024, Day: 23} }
+
+type lanGraph struct {
+	names    []string
+	adjacent [][]uint64
 }
 
-func (d Day23) Coords() solve.SolutionCoords {
-	return solve.SolutionCoords{Year: 2024, Day: 23}
-}
-
-func run(input string) (int, string) {
-	var m = make(connectionsMap)
-
-	for _, line := range strings.Split(input, "\n") {
-		if line == "" {
-			continue
+func parseLAN(input string) (lanGraph, error) {
+	var graph lanGraph
+	edges := [][2]string{}
+	names := map[string]bool{}
+	for line, record := range strings.Split(strings.TrimSuffix(input, "\n"), "\n") {
+		record = strings.TrimSuffix(record, "\r")
+		pair := strings.Split(record, "-")
+		if len(pair) != 2 {
+			return graph, fmt.Errorf("line %d: expected computer-computer", line+1)
 		}
-
-		parts := strings.Split(line, "-")
-		start := parts[0]
-		end := parts[1]
-
-		m.get(start).add(end)
-		m.get(end).add(start)
-	}
-
-	var threes = make(map[string]bool)
-	var largest = make([]string, 0)
-
-	for name, connections := range m {
-		var lan = make([]string, 1)
-		lan[0] = name
-
-		for _, v1 := range connections.arr {
-			a := m[v1]
-
-			var include = true
-			for _, n := range lan {
-				if !a.has(n) {
-					include = false
-					break
-				}
-			}
-
-			if include {
-				lan = append(lan, v1)
-			}
-
-			for _, v2 := range connections.arr {
-				if v1 == v2 {
-					continue
-				}
-
-				b := m[v2]
-
-				if a.has(v2) && b.has(v1) {
-					var names = make([]string, 3)
-					names[0] = name
-					names[1] = v1
-					names[2] = v2
-					sort.Strings(names)
-
-					threes[strings.Join(names, "-")] = true
-				}
+		for _, name := range pair {
+			if len(name) != 2 || name[0] < 'a' || name[0] > 'z' || name[1] < 'a' || name[1] > 'z' {
+				return graph, fmt.Errorf("line %d: expected two lowercase letters per computer", line+1)
 			}
 		}
+		if pair[0] == pair[1] {
+			return graph, fmt.Errorf("line %d: self connection", line+1)
+		}
+		edges = append(edges, [2]string{pair[0], pair[1]})
+		names[pair[0]] = true
+		names[pair[1]] = true
+	}
+	for name := range names {
+		graph.names = append(graph.names, name)
+	}
+	sort.Strings(graph.names)
+	ids := map[string]int{}
+	graph.adjacent = make([][]uint64, len(graph.names))
+	for id, name := range graph.names {
+		ids[name] = id
+		graph.adjacent[id] = make([]uint64, (len(graph.names)+63)/64)
+	}
+	for _, edge := range edges {
+		a, b := ids[edge[0]], ids[edge[1]]
+		graph.adjacent[a][b/64] |= 1 << (b % 64)
+		graph.adjacent[b][a/64] |= 1 << (a % 64)
+	}
+	return graph, nil
+}
 
-		sort.Strings(lan)
+func (g lanGraph) connected(a, b int) bool { return g.adjacent[a][b/64]&(1<<(b%64)) != 0 }
 
-		if len(lan) > len(largest) {
-			largest = lan
+func (g lanGraph) triangles() uint64 {
+	var count uint64
+	for a := range g.names {
+		for b := a + 1; b < len(g.names); b++ {
+			if !g.connected(a, b) {
+				continue
+			}
+			for c := b + 1; c < len(g.names); c++ {
+				if g.connected(a, c) && g.connected(b, c) && (g.names[a][0] == 't' || g.names[b][0] == 't' || g.names[c][0] == 't') {
+					count++
+				}
+			}
 		}
 	}
+	return count
+}
 
-	var partOne int
-	for v := range threes {
-		if v[0] == 't' || v[3] == 't' || v[6] == 't' {
-			partOne++
+func (g lanGraph) largestClique() []int {
+	candidates := make([]int, len(g.names))
+	for i := range candidates {
+		candidates[i] = i
+	}
+	best, path := []int{}, []int{}
+	var search func([]int)
+	search = func(remaining []int) {
+		if len(path) > len(best) {
+			best = append([]int(nil), path...)
+		}
+		for i, vertex := range remaining {
+			if len(path)+len(remaining)-i <= len(best) {
+				return
+			}
+			next := make([]int, 0, len(remaining)-i-1)
+			for _, candidate := range remaining[i+1:] {
+				if g.connected(vertex, candidate) {
+					next = append(next, candidate)
+				}
+			}
+			path = append(path, vertex)
+			search(next)
+			path = path[:len(path)-1]
 		}
 	}
-
-	return partOne, strings.Join(largest, ",")
-}
-
-type connectionsMap map[string]*connections
-
-func (m connectionsMap) get(name string) *connections {
-	if v, ok := m[name]; ok {
-		return v
-	}
-	m[name] = &connections{
-		arr: []string{},
-	}
-	return m[name]
-}
-
-type connections struct {
-	arr []string
-}
-
-func (c *connections) add(name string) {
-	c.arr = append(c.arr, name)
-}
-
-func (c *connections) has(name string) bool {
-	for _, v := range c.arr {
-		if v == name {
-			return true
-		}
-	}
-
-	return false
+	search(candidates)
+	return best
 }
 
 func (d Day23) Part1(input string) (string, error) {
-	totalPartOne, _ := run(input)
-
-	return strconv.Itoa(totalPartOne), nil
+	graph, err := parseLAN(input)
+	if err != nil {
+		return "", err
+	}
+	return strconv.FormatUint(graph.triangles(), 10), nil
 }
-
 func (d Day23) Part2(input string) (string, error) {
-	_, totalPartTwo := run(input)
-
-	return totalPartTwo, nil
+	graph, err := parseLAN(input)
+	if err != nil {
+		return "", err
+	}
+	clique := graph.largestClique()
+	names := make([]string, len(clique))
+	for i, id := range clique {
+		names[i] = graph.names[id]
+	}
+	return strings.Join(names, ","), nil
 }
-
-func init() {
-	solve.Register(Day23{})
-}
+func init() { solve.Register(Day23{}) }
