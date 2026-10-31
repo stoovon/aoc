@@ -2,207 +2,351 @@ package solve2020
 
 import (
 	"aoc/solve"
-	"errors"
+	"fmt"
+	"math"
+	"sort"
 	"strconv"
 	"strings"
 )
 
 type Day19 struct{}
 
-func (d Day19) Coords() solve.SolutionCoords {
-	return solve.SolutionCoords{Year: 2020, Day: 19}
+func (d Day19) Coords() solve.SolutionCoords { return solve.SolutionCoords{Year: 2020, Day: 19} }
+
+type messageRule struct {
+	literal      string
+	alternatives [][]int
+}
+type messageGrammar struct {
+	rules []messageRule
+	index map[int]int
 }
 
-func (d Day19) Part1(input string) (string, error) {
-	rules, messages, err := parseInput19(input)
-	if err != nil {
-		return "", err
+func messageWord(text string) bool {
+	if text == "" {
+		return false
 	}
-	count := 0
-	for _, msg := range messages {
-		if matchRule0(rules, msg) {
-			count++
+	for _, c := range []byte(text) {
+		if !(c >= 'a' && c <= 'z') && !(c >= 'A' && c <= 'Z') {
+			return false
 		}
 	}
-	return strconv.Itoa(count), nil
+	return true
 }
 
-type rule19 struct {
-	char string
-	alts [][]int
+func messageRuleID(text string) (int, error) {
+	if text == "" {
+		return 0, fmt.Errorf("expected nonnegative rule ID")
+	}
+	for _, c := range []byte(text) {
+		if c < '0' || c > '9' {
+			return 0, fmt.Errorf("invalid rule ID %q", text)
+		}
+	}
+	id, err := strconv.Atoi(text)
+	if err != nil {
+		return 0, fmt.Errorf("rule ID out of range: %q", text)
+	}
+	return id, nil
 }
 
-func matchRule0(rules map[int]rule19, msg string) bool {
-	ends := matchRule(rules, 0, msg)
-	for _, e := range ends {
-		if e == len(msg) {
-			return true
+func parseMonsterMessages(input string) (messageGrammar, []string, error) {
+	input = strings.TrimSuffix(strings.ReplaceAll(input, "\r\n", "\n"), "\n")
+	source, messagesText, ok := strings.Cut(input, "\n\n")
+	if !ok || source == "" || messagesText == "" {
+		return messageGrammar{}, nil, fmt.Errorf("expected rules and messages separated by a blank line")
+	}
+	lines := strings.Split(source, "\n")
+	raw := make(map[int]messageRule)
+	for number, line := range lines {
+		parseLine := func() error {
+			idText, body, ok := strings.Cut(line, ":")
+			if !ok {
+				return fmt.Errorf("expected rule ID: definition")
+			}
+			id, err := messageRuleID(strings.TrimSpace(idText))
+			if err != nil {
+				return err
+			}
+			if _, exists := raw[id]; exists {
+				return fmt.Errorf("duplicate rule %d", id)
+			}
+			body = strings.TrimSpace(body)
+			rule := messageRule{}
+			if strings.HasPrefix(body, "\"") {
+				literal, err := strconv.Unquote(body)
+				if err != nil || !messageWord(literal) {
+					return fmt.Errorf("expected a quoted nonempty alphabetic literal")
+				}
+				rule.literal = literal
+			} else {
+				for _, alternative := range strings.Split(body, "|") {
+					fields := strings.Fields(alternative)
+					if len(fields) == 0 {
+						return fmt.Errorf("expected nonempty rule alternative")
+					}
+					sequence := make([]int, len(fields))
+					for i, field := range fields {
+						sequence[i], err = messageRuleID(field)
+						if err != nil {
+							return err
+						}
+					}
+					rule.alternatives = append(rule.alternatives, sequence)
+				}
+			}
+			raw[id] = rule
+			return nil
+		}
+		if err := parseLine(); err != nil {
+			return messageGrammar{}, nil, fmt.Errorf("line %d: %w", number+1, err)
+		}
+	}
+	if _, ok := raw[0]; !ok {
+		return messageGrammar{}, nil, fmt.Errorf("missing rule 0")
+	}
+	ids := make([]int, 0, len(raw))
+	for id := range raw {
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+	grammar := messageGrammar{rules: make([]messageRule, len(ids)), index: make(map[int]int, len(ids))}
+	for index, id := range ids {
+		grammar.index[id] = index
+	}
+	for index, id := range ids {
+		rule := raw[id]
+		for _, sequence := range rule.alternatives {
+			for i, reference := range sequence {
+				mapped, ok := grammar.index[reference]
+				if !ok {
+					return messageGrammar{}, nil, fmt.Errorf("rule %d references missing rule %d", id, reference)
+				}
+				sequence[i] = mapped
+			}
+		}
+		grammar.rules[index] = rule
+	}
+	messages := strings.Split(messagesText, "\n")
+	for i, message := range messages {
+		if !messageWord(message) {
+			return messageGrammar{}, nil, fmt.Errorf("line %d: expected a nonempty alphabetic message", len(lines)+2+i)
+		}
+	}
+	return grammar, messages, nil
+}
+
+func (g messageGrammar) fixedWidths() []int {
+	widths := make([]int, len(g.rules))
+	state := make([]uint8, len(g.rules))
+	var width func(int) int
+	width = func(id int) int {
+		if state[id] == 1 {
+			return 0
+		}
+		if state[id] == 2 {
+			return widths[id]
+		}
+		state[id] = 1
+		rule := g.rules[id]
+		result := len(rule.literal)
+		if rule.literal == "" {
+			for i, sequence := range rule.alternatives {
+				total := 0
+				for _, sub := range sequence {
+					w := width(sub)
+					if w == 0 || w > math.MaxInt-total {
+						total = 0
+						break
+					}
+					total += w
+				}
+				if total == 0 || (i > 0 && total != result) {
+					result = 0
+					break
+				}
+				result = total
+			}
+		}
+		state[id] = 2
+		widths[id] = result
+		return result
+	}
+	for id := range g.rules {
+		width(id)
+	}
+	return widths
+}
+
+type fixedMessageKey struct {
+	rule int
+	text string
+}
+type fixedMessageMatcher struct {
+	grammar messageGrammar
+	widths  []int
+	memo    map[fixedMessageKey]bool
+}
+
+func (m fixedMessageMatcher) matches(id int, text string) bool {
+	if len(text) != m.widths[id] {
+		return false
+	}
+	rule := m.grammar.rules[id]
+	if rule.literal != "" {
+		return text == rule.literal
+	}
+	key := fixedMessageKey{id, text}
+	if value, ok := m.memo[key]; ok {
+		return value
+	}
+	matched := false
+	for _, sequence := range rule.alternatives {
+		offset, valid := 0, true
+		for _, sub := range sequence {
+			end := offset + m.widths[sub]
+			if !m.matches(sub, text[offset:end]) {
+				valid = false
+				break
+			}
+			offset = end
+		}
+		if valid {
+			matched = true
+			break
+		}
+	}
+	m.memo[key] = matched
+	return matched
+}
+
+func (m fixedMessageMatcher) matchesRecursiveChunks(text string, width, left, right int) bool {
+	if len(text)%width != 0 {
+		return false
+	}
+	count := len(text) / width
+	if count < 3 {
+		return false
+	}
+	prefix := 0
+	for prefix < count-1 && m.matches(left, text[prefix*width:(prefix+1)*width]) {
+		prefix++
+	}
+	if prefix <= count-prefix {
+		return false
+	}
+	for i := prefix; i < count; i++ {
+		if !m.matches(right, text[i*width:(i+1)*width]) {
+			return false
+		}
+	}
+	return true
+}
+
+type messageItem struct{ rule, alternative, dot, start int }
+type messageChart struct {
+	items   []messageItem
+	seen    map[messageItem]struct{}
+	waiting map[int][]messageItem
+}
+
+func (c *messageChart) add(item messageItem) {
+	if c.seen == nil {
+		c.seen = make(map[messageItem]struct{})
+	}
+	if _, ok := c.seen[item]; ok {
+		return
+	}
+	c.seen[item] = struct{}{}
+	c.items = append(c.items, item)
+}
+func (g messageGrammar) recognizes(text string) bool {
+	root := g.index[0]
+	if g.rules[root].literal != "" {
+		return text == g.rules[root].literal
+	}
+	chart := make([]messageChart, len(text)+1)
+	for alternative := range g.rules[root].alternatives {
+		chart[0].add(messageItem{rule: root, alternative: alternative})
+	}
+	for position := range chart {
+		for cursor := 0; cursor < len(chart[position].items); cursor++ {
+			item := chart[position].items[cursor]
+			sequence := g.rules[item.rule].alternatives[item.alternative]
+			if item.dot == len(sequence) {
+				if item.rule == root && item.start == 0 && position == len(text) {
+					return true
+				}
+				for _, parent := range chart[item.start].waiting[item.rule] {
+					parent.dot++
+					chart[position].add(parent)
+				}
+				continue
+			}
+			next := sequence[item.dot]
+			rule := g.rules[next]
+			if rule.literal != "" {
+				if strings.HasPrefix(text[position:], rule.literal) {
+					item.dot++
+					chart[position+len(rule.literal)].add(item)
+				}
+			} else {
+				if chart[position].waiting == nil {
+					chart[position].waiting = make(map[int][]messageItem)
+				}
+				chart[position].waiting[next] = append(chart[position].waiting[next], item)
+				for alternative := range rule.alternatives {
+					chart[position].add(messageItem{rule: next, alternative: alternative, start: position})
+				}
+			}
 		}
 	}
 	return false
 }
 
-// Returns all possible end positions after matching rule at pos 0
-func matchRule(rules map[int]rule19, idx int, msg string) []int {
-	rule := rules[idx]
-	if rule.char != "" {
-		if strings.HasPrefix(msg, rule.char) {
-			return []int{1}
-		}
-		return nil
-	}
-	var ends []int
-	for _, seq := range rule.alts {
-		positions := []int{0}
-		for _, sub := range seq {
-			var newPos []int
-			for _, p := range positions {
-				res := matchRule(rules, sub, msg[p:])
-				for _, r := range res {
-					newPos = append(newPos, p+r)
-				}
-			}
-			positions = newPos
-			if len(positions) == 0 {
-				break
-			}
-		}
-		ends = append(ends, positions...)
-	}
-	return ends
-}
-
-func (d Day19) Part2(input string) (string, error) {
-	rules, messages, err := parseInput19(input)
+func solveMonsterMessages(input string, recursive bool) (string, error) {
+	grammar, messages, err := parseMonsterMessages(input)
 	if err != nil {
 		return "", err
 	}
-	// Patch rules 8 and 11 for recursion
-	rules[8] = rule19{alts: [][]int{{42}, {42, 8}}}
-	rules[11] = rule19{alts: [][]int{{42, 31}, {42, 11, 31}}}
-	rule42matches := d.allMatches(rules, 42)
-	rule31matches := d.allMatches(rules, 31)
-	segLen := 0
-	for m := range rule42matches {
-		if segLen == 0 {
-			segLen = len(m)
+	if recursive {
+		for _, id := range []int{8, 11, 42, 31} {
+			if _, ok := grammar.index[id]; !ok {
+				return "", fmt.Errorf("part two requires rule %d", id)
+			}
 		}
-		if len(m) != segLen {
-			return "", errors.New("rule 42 matches have inconsistent lengths")
+		r8, r11, r42, r31 := grammar.index[8], grammar.index[11], grammar.index[42], grammar.index[31]
+		grammar.rules[r8] = messageRule{alternatives: [][]int{{r42}, {r42, r8}}}
+		grammar.rules[r11] = messageRule{alternatives: [][]int{{r42, r31}, {r42, r11, r31}}}
+	}
+	widths := grammar.fixedWidths()
+	matcher := fixedMessageMatcher{grammar, widths, make(map[fixedMessageKey]bool)}
+	root := grammar.index[0]
+	chunkWidth, left, right := 0, 0, 0
+	if recursive {
+		r8, r11 := grammar.index[8], grammar.index[11]
+		left, right = grammar.index[42], grammar.index[31]
+		alternatives := grammar.rules[root].alternatives
+		if len(alternatives) == 1 && len(alternatives[0]) == 2 && alternatives[0][0] == r8 && alternatives[0][1] == r11 && widths[left] > 0 && widths[left] == widths[right] {
+			chunkWidth = widths[left]
 		}
 	}
 	count := 0
-	for _, msg := range messages {
-		if d.matchPart2(msg, rule42matches, rule31matches, segLen) {
+	for _, message := range messages {
+		var matched bool
+		if widths[root] > 0 {
+			matched = matcher.matches(root, message)
+		} else if chunkWidth > 0 {
+			matched = matcher.matchesRecursiveChunks(message, chunkWidth, left, right)
+		} else {
+			matched = grammar.recognizes(message)
+		}
+		if matched {
 			count++
 		}
 	}
 	return strconv.Itoa(count), nil
 }
-
-func parseInput19(input string) (map[int]rule19, []string, error) {
-	rulesSection, messagesSection, found := strings.Cut(input, "\n\n")
-	if !found {
-		return nil, nil, errors.New("input missing rules/messages section")
-	}
-	rules := parseRules19(strings.Split(strings.TrimSpace(rulesSection), "\n"))
-	messages := strings.Split(strings.TrimSpace(messagesSection), "\n")
-	return rules, messages, nil
-}
-
-func parseRules19(lines []string) map[int]rule19 {
-	rules := make(map[int]rule19)
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		parts := strings.SplitN(line, ": ", 2)
-		idx, _ := strconv.Atoi(parts[0])
-		if strings.Contains(parts[1], "\"") {
-			rules[idx] = rule19{char: strings.Trim(parts[1], "\"")}
-		} else {
-			var alts [][]int
-			for _, alt := range strings.Split(parts[1], "|") {
-				var seq []int
-				for _, n := range strings.Fields(alt) {
-					v, _ := strconv.Atoi(n)
-					seq = append(seq, v)
-				}
-				alts = append(alts, seq)
-			}
-			rules[idx] = rule19{alts: alts}
-		}
-	}
-	return rules
-}
-
-// Generate all possible matches for a rule (should only be used for rules 42 and 31)
-func (d Day19) allMatches(rules map[int]rule19, idx int) map[string]struct{} {
-	var gen func(int) []string
-	memo := make(map[int][]string)
-	gen = func(i int) []string {
-		if v, ok := memo[i]; ok {
-			return v
-		}
-		rule := rules[i]
-		if rule.char != "" {
-			memo[i] = []string{rule.char}
-			return memo[i]
-		}
-		var out []string
-		for _, alt := range rule.alts {
-			seq := []string{""}
-			for _, sub := range alt {
-				var next []string
-				for _, s := range seq {
-					for _, t := range gen(sub) {
-						next = append(next, s+t)
-					}
-				}
-				seq = next
-			}
-			out = append(out, seq...)
-		}
-		memo[i] = out
-		return out
-	}
-	res := make(map[string]struct{})
-	for _, s := range gen(idx) {
-		res[s] = struct{}{}
-	}
-	return res
-}
-
-// Check if a message matches rule 0 with recursive rules 8 and 11
-func (d Day19) matchPart2(msg string, rule42, rule31 map[string]struct{}, segLen int) bool {
-	n := len(msg)
-	if n%segLen != 0 {
-		return false
-	}
-	var segs []string
-	for i := 0; i < n; i += segLen {
-		segs = append(segs, msg[i:i+segLen])
-	}
-	i := 0
-	for i < len(segs) && contains(rule42, segs[i]) {
-		i++
-	}
-	// At least two rule 42 matches (one for rule 8, one for rule 11)
-	n42 := i
-	j := len(segs) - 1
-	for j >= 0 && contains(rule31, segs[j]) {
-		j--
-	}
-	n31 := len(segs) - 1 - j
-	// There must be at least one rule 31, more rule 42 than rule 31, and all segments used
-	return n31 >= 1 && n42 > n31 && n42+n31 == len(segs)
-}
-
-func contains(set map[string]struct{}, s string) bool {
-	_, ok := set[s]
-	return ok
-}
-
-func init() {
-	solve.Register(Day19{})
-}
+func (d Day19) Part1(input string) (string, error) { return solveMonsterMessages(input, false) }
+func (d Day19) Part2(input string) (string, error) { return solveMonsterMessages(input, true) }
+func init()                                        { solve.Register(Day19{}) }
