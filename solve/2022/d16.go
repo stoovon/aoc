@@ -1,162 +1,232 @@
 package solve2022
 
 import (
-	"aoc/solve"
 	"fmt"
 	"math"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
+
+	"aoc/solve"
 )
 
 type Day16 struct{}
 
-func (d Day16) Coords() solve.SolutionCoords {
-	return solve.SolutionCoords{Year: 2022, Day: 16}
+func (d Day16) Coords() solve.SolutionCoords { return solve.SolutionCoords{Year: 2022, Day: 16} }
+
+var valveRecord = regexp.MustCompile(`^Valve ([A-Z]{2}) has flow rate=([0-9]+); (?:tunnels lead to valves ([A-Z]{2}(?:, [A-Z]{2})*)|tunnel leads to valve ([A-Z]{2}))$`)
+
+type valveNetwork struct {
+	rates []uint64
+	edges [][]int
+	start int
 }
 
-func (d Day16) Part1(input string) (string, error) {
-	valves, tunnels := d.parseInput(input)
-
-	// Compute shortest paths using Floyd-Warshall
-	costs := floydWarshall(valves, tunnels)
-
-	relevantValves := filterRelevantValves(valves)
-
-	maxPressure := dfs("AA", 30, 0, relevantValves, costs, map[string]bool{})
-
-	return fmt.Sprintf("%d", maxPressure), nil
-}
-
-func (d Day16) Part2(input string) (string, error) {
-	valves, tunnels := d.parseInput(input)
-
-	// Compute shortest paths using Floyd-Warshall
-	costs := floydWarshall(valves, tunnels)
-
-	relevantValves := filterRelevantValves(valves)
-
-	maxPressure1, path1 := dfsWithPath("AA", 26, 0, relevantValves, costs, map[string]bool{}, []string{})
-
-	for _, valve := range path1 {
-		relevantValves[valve] = 0
-	}
-
-	maxPressure2, _ := dfsWithPath("AA", 26, 0, relevantValves, costs, map[string]bool{}, []string{})
-
-	totalPressure := maxPressure1 + maxPressure2
-
-	return fmt.Sprintf("%d", totalPressure), nil
-}
-
-func init() {
-	solve.Register(Day16{})
-}
-
-func (d Day16) parseInput(input string) (map[string]int, map[string][]string) {
-	valves := make(map[string]int)
-	tunnels := make(map[string][]string)
-	for _, line := range strings.Split(input, "\n") {
-		if line == "" {
-			continue
+func parseValveNetwork(input string) (valveNetwork, error) {
+	var g valveNetwork
+	ids := map[string]int{}
+	targets := [][]string{}
+	for line, record := range strings.Split(strings.TrimSuffix(input, "\n"), "\n") {
+		record = strings.TrimSuffix(record, "\r")
+		match := valveRecord.FindStringSubmatch(record)
+		if match == nil {
+			return g, fmt.Errorf("line %d: invalid valve record", line+1)
 		}
-
-		parts := strings.Split(line, ";")
-		valveInfo := strings.Fields(parts[0])
-		valve := valveInfo[1]
-		flow := 0
-		fmt.Sscanf(valveInfo[4], "rate=%d", &flow)
-		valves[valve] = flow
-
-		connections := []string{}
-		if len(parts) > 1 {
-			connectionsPart := strings.TrimPrefix(parts[1], " tunnels lead to valves ")
-			connectionsPart = strings.TrimPrefix(connectionsPart, " tunnel leads to valve ")
-			connections = strings.Split(connectionsPart, ", ")
+		if _, exists := ids[match[1]]; exists {
+			return g, fmt.Errorf("line %d: duplicate valve %s", line+1, match[1])
 		}
-		tunnels[valve] = connections
+		rate, err := strconv.ParseUint(match[2], 10, 64)
+		if err != nil {
+			return g, fmt.Errorf("line %d: invalid flow rate: %w", line+1, err)
+		}
+		ids[match[1]] = len(g.rates)
+		g.rates = append(g.rates, rate)
+		names := match[3]
+		if names == "" {
+			names = match[4]
+		}
+		targets = append(targets, strings.Split(names, ", "))
 	}
-	return valves, tunnels
-}
-
-func floydWarshall(valves map[string]int, tunnels map[string][]string) map[string]map[string]int {
-	costs := make(map[string]map[string]int)
-	for v := range valves {
-		costs[v] = make(map[string]int)
-		for u := range valves {
-			if v == u {
-				costs[v][u] = 0
-			} else {
-				costs[v][u] = math.MaxInt32
+	start, ok := ids["AA"]
+	if !ok {
+		return g, fmt.Errorf("missing starting valve AA")
+	}
+	g.start = start
+	g.edges = make([][]int, len(g.rates))
+	for from, names := range targets {
+		seen := map[int]bool{}
+		for _, name := range names {
+			to, ok := ids[name]
+			if !ok {
+				return g, fmt.Errorf("line %d: undefined valve %s", from+1, name)
+			}
+			if !seen[to] {
+				seen[to] = true
+				g.edges[from] = append(g.edges[from], to)
 			}
 		}
 	}
-	for v, neighbors := range tunnels {
-		for _, u := range neighbors {
-			costs[v][u] = 1
+	return g, nil
+}
+
+func (g valveNetwork) distances(from int) []int {
+	dist := make([]int, len(g.rates))
+	for i := range dist {
+		dist[i] = -1
+	}
+	dist[from] = 0
+	queue := []int{from}
+	for head := 0; head < len(queue); head++ {
+		for _, to := range g.edges[queue[head]] {
+			if dist[to] < 0 {
+				dist[to] = dist[queue[head]] + 1
+				queue = append(queue, to)
+			}
 		}
 	}
-	for k := range valves {
-		for i := range valves {
-			for j := range valves {
-				if costs[i][j] > costs[i][k]+costs[k][j] {
-					costs[i][j] = costs[i][k] + costs[k][j]
+	return dist
+}
+
+type valveSearch struct {
+	rates  []uint64
+	travel [][]int
+}
+
+func (g valveNetwork) prepare(minutes int) valveSearch {
+	initial := g.distances(g.start)
+	useful := []int{}
+	for id, rate := range g.rates {
+		if rate > 0 && initial[id] >= 0 && initial[id]+1 < minutes {
+			useful = append(useful, id)
+		}
+	}
+	sort.Slice(useful, func(i, j int) bool { return g.rates[useful[i]] > g.rates[useful[j]] })
+	var search valveSearch
+	for _, id := range useful {
+		search.rates = append(search.rates, g.rates[id])
+	}
+	for _, from := range append(useful, g.start) {
+		distances := g.distances(from)
+		row := make([]int, len(useful))
+		for i, to := range useful {
+			row[i] = distances[to]
+		}
+		search.travel = append(search.travel, row)
+	}
+	return search
+}
+
+type valveSearchState struct {
+	current, timeLeft int
+	opened            string
+}
+
+func (s valveSearch) scores(minutes int) (map[string]uint64, error) {
+	best := map[string]uint64{}
+	arrivals := map[valveSearchState]uint64{}
+	var visit func(valveSearchState, uint64) error
+	visit = func(state valveSearchState, score uint64) error {
+		if previous, ok := arrivals[state]; ok && previous >= score {
+			return nil
+		}
+		arrivals[state] = score
+		if previous, ok := best[state.opened]; !ok || score > previous {
+			best[state.opened] = score
+		}
+		for next, rate := range s.rates {
+			if state.opened[next/8]&(1<<(next%8)) != 0 {
+				continue
+			}
+			distance := s.travel[state.current][next]
+			remaining := state.timeLeft - distance - 1
+			if distance < 0 || remaining <= 0 {
+				continue
+			}
+			if rate > math.MaxUint64/uint64(remaining) {
+				return fmt.Errorf("pressure exceeds uint64")
+			}
+			gain := rate * uint64(remaining)
+			if score > math.MaxUint64-gain {
+				return fmt.Errorf("pressure exceeds uint64")
+			}
+			opened := []byte(state.opened)
+			opened[next/8] |= 1 << (next % 8)
+			if err := visit(valveSearchState{next, remaining, string(opened)}, score+gain); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	err := visit(valveSearchState{len(s.rates), minutes, string(make([]byte, (len(s.rates)+7)/8))}, 0)
+	return best, err
+}
+
+type valveSetScore struct {
+	opened string
+	score  uint64
+}
+
+func combineValveScores(scores map[string]uint64) (uint64, error) {
+	sets := make([]valveSetScore, 0, len(scores))
+	for opened, score := range scores {
+		sets = append(sets, valveSetScore{opened, score})
+	}
+	sort.Slice(sets, func(i, j int) bool { return sets[i].score > sets[j].score })
+	var best uint64
+	for i, a := range sets {
+		if a.score <= best/2 {
+			break
+		}
+		for _, b := range sets[i:] {
+			if a.score <= best && b.score <= best-a.score {
+				break
+			}
+			disjoint := true
+			for k := 0; k < len(a.opened); k++ {
+				if a.opened[k]&b.opened[k] != 0 {
+					disjoint = false
+					break
 				}
 			}
+			if !disjoint {
+				continue
+			}
+			if a.score > math.MaxUint64-b.score {
+				return 0, fmt.Errorf("combined pressure exceeds uint64")
+			}
+			best = a.score + b.score
+			break
 		}
 	}
-	return costs
+	return best, nil
 }
 
-func filterRelevantValves(valves map[string]int) map[string]int {
-	relevant := make(map[string]int)
-	for valve, flow := range valves {
-		if flow > 0 || valve == "AA" {
-			relevant[valve] = flow
-		}
+func valvePressure(input string, minutes int, twoWorkers bool) (string, error) {
+	network, err := parseValveNetwork(input)
+	if err != nil {
+		return "", err
 	}
-	return relevant
-}
-
-func dfs(current string, timeLeft, pressure int, valves map[string]int, costs map[string]map[string]int, opened map[string]bool) int {
-	if timeLeft <= 0 {
-		return pressure
+	scores, err := network.prepare(minutes).scores(minutes)
+	if err != nil {
+		return "", err
 	}
-	maxPressure := pressure
-	for valve, flow := range valves {
-		if !opened[valve] && flow > 0 {
-			timeToOpen := costs[current][valve] + 1
-			if timeLeft >= timeToOpen {
-				opened[valve] = true
-				totalPressure := dfs(valve, timeLeft-timeToOpen, pressure+(timeLeft-timeToOpen)*flow, valves, costs, opened)
-				if totalPressure > maxPressure {
-					maxPressure = totalPressure
-				}
-				opened[valve] = false
+	var best uint64
+	if twoWorkers {
+		best, err = combineValveScores(scores)
+	} else {
+		for _, score := range scores {
+			if score > best {
+				best = score
 			}
 		}
 	}
-	return maxPressure
+	if err != nil {
+		return "", err
+	}
+	return strconv.FormatUint(best, 10), nil
 }
 
-func dfsWithPath(current string, timeLeft, pressure int, valves map[string]int, costs map[string]map[string]int, opened map[string]bool, path []string) (int, []string) {
-	if timeLeft <= 0 {
-		return pressure, path
-	}
-	maxPressure := pressure
-	bestPath := append([]string{}, path...)
-	for valve, flow := range valves {
-		if !opened[valve] && flow > 0 {
-			timeToOpen := costs[current][valve] + 1
-			if timeLeft >= timeToOpen {
-				opened[valve] = true
-				newPath := append(path, valve)
-				totalPressure, resultPath := dfsWithPath(valve, timeLeft-timeToOpen, pressure+(timeLeft-timeToOpen)*flow, valves, costs, opened, newPath)
-				if totalPressure > maxPressure {
-					maxPressure = totalPressure
-					bestPath = resultPath
-				}
-				opened[valve] = false
-			}
-		}
-	}
-	return maxPressure, bestPath
-}
+func (d Day16) Part1(input string) (string, error) { return valvePressure(input, 30, false) }
+func (d Day16) Part2(input string) (string, error) { return valvePressure(input, 26, true) }
+func init()                                        { solve.Register(Day16{}) }
