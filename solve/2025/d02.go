@@ -1,233 +1,154 @@
 package solve2025
 
 import (
-	"errors"
+	"fmt"
+	"math/big"
+	"sort"
 	"strconv"
 	"strings"
 
 	"aoc/solve"
 )
 
-type Day2 struct {
-}
+type Day2 struct{}
 
-func (d Day2) Coords() solve.SolutionCoords {
-	return solve.SolutionCoords{Year: 2025, Day: 2}
-}
+func (d Day2) Coords() solve.SolutionCoords { return solve.SolutionCoords{Year: 2025, Day: 2} }
 
-func (d Day2) Part1(input string) (string, error) {
-	total, err := sumRangesBy(input, sumDoublesInRange)
+type giftShopRange struct{ low, high int64 }
+
+func giftShopEndpoint(text string) (int64, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return 0, fmt.Errorf("empty endpoint")
+	}
+	for i := 0; i < len(text); i++ {
+		if text[i] < '0' || text[i] > '9' {
+			return 0, fmt.Errorf("expected nonnegative decimal endpoint")
+		}
+	}
+	value, err := strconv.ParseInt(text, 10, 64)
 	if err != nil {
-		return "", err
+		return 0, fmt.Errorf("endpoint exceeds int64")
 	}
-	return strconv.FormatInt(total, 10), nil
+	return value, nil
 }
 
-func (d Day2) Part2(input string) (string, error) {
-	total, err := sumRangesBy(input, sumRepeatedAtLeastTwiceInRange)
-	if err != nil {
-		return "", err
-	}
-	return strconv.FormatInt(total, 10), nil
-}
-
-func init() {
-	solve.Register(Day2{})
-}
-
-// sumRangesBy parses the single-line comma-separated ranges and returns the summed
-// result of applying f to each numeric range [a,b]. Leading zeros are ignored by parsing.
-func sumRangesBy(input string, f func(lo, hi int64) int64) (int64, error) {
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return 0, errors.New("empty input")
-	}
-	parts := strings.Split(input, ",")
-	var total int64
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
+func parseGiftShopRanges(input string) ([]giftShopRange, error) {
+	records := strings.Split(strings.TrimSpace(input), ",")
+	ranges := make([]giftShopRange, 0, len(records))
+	for index, record := range records {
+		pair := strings.Split(record, "-")
+		if len(pair) != 2 {
+			return nil, fmt.Errorf("range %d: expected low-high", index+1)
 		}
-		dash := strings.IndexByte(p, '-')
-		if dash == -1 {
-			return 0, errors.New("invalid range: missing dash")
-		}
-		aStr := strings.TrimSpace(p[:dash])
-		bStr := strings.TrimSpace(p[dash+1:])
-		a, err := strconv.ParseInt(aStr, 10, 64)
+		low, err := giftShopEndpoint(pair[0])
 		if err != nil {
-			return 0, err
+			return nil, fmt.Errorf("range %d: %w", index+1, err)
 		}
-		b, err := strconv.ParseInt(bStr, 10, 64)
+		high, err := giftShopEndpoint(pair[1])
 		if err != nil {
-			return 0, err
+			return nil, fmt.Errorf("range %d: %w", index+1, err)
 		}
-		if a > b {
-			a, b = b, a
+		if low > high {
+			low, high = high, low
 		}
-		total += f(a, b)
+		ranges = append(ranges, giftShopRange{low, high})
 	}
-	return total, nil
-}
-
-var pow10 = [...]int64{
-	1,
-	10,
-	100,
-	1000,
-	10000,
-	100000,
-	1000000,
-	10000000,
-	100000000,
-	1000000000,
-	10000000000,
-	100000000000,
-	1000000000000,
-	10000000000000,
-	100000000000000,
-	1000000000000000,
-	10000000000000000,
-	100000000000000000,
-}
-
-func digits(n int64) int {
-	if n == 0 {
-		return 1
-	}
-	d := 0
-	for d < len(pow10) && n >= pow10[d] {
-		d++
-	}
-	return d
-}
-
-// sumDoublesInRange returns the sum of all numbers in [lo, hi]
-// that are formed by repeating a sequence of digits twice (e.g., 55, 6464, 123123).
-func sumDoublesInRange(lo, hi int64) int64 {
-	return sumRepeatedInRange(lo, hi, 2, 2)
-}
-
-// sumRepeatedAtLeastTwiceInRange sums numbers in [lo,hi] that are composed of a base block
-// of k digits repeated m times for any m >= 2. Each number is counted once by requiring
-// the base block to be primitive (i.e., not itself a repetition).
-func sumRepeatedAtLeastTwiceInRange(lo, hi int64) int64 {
-	return sumRepeatedInRange(lo, hi, 2, 0)
-}
-
-func divCeil(a, b int64) int64 {
-	if b == 0 {
-		return 0
-	}
-	if a >= 0 {
-		return (a + b - 1) / b
-	}
-	// For negative a, integer division in Go rounds toward zero.
-	// Ceil for negative a can be just a / b.
-	return a / b
-}
-
-// sumRepeatedInRange sums numbers in [lo,hi] that are composed of a base block
-// of k digits repeated m times, with m constrained by [minRepeats, maxRepeats].
-// When maxRepeats==0, m ranges from minRepeats up to floor(digits(hi)/k), so
-// total digits D = k*m never exceed digits(hi). Values are further clipped to
-// [lo,hi] by intersecting the implied base range.
-func sumRepeatedInRange(lo, hi int64, minRepeats, maxRepeats int) int64 {
-	if hi < 11 {
-		return 0
-	}
-	if lo < 0 {
-		lo = 0
-	}
-
-	var sum int64
-	maxDigits := digits(hi)
-	// k is base block length
-	for k := 1; k <= maxDigits/2; k++ {
-		kLo := pow10[k-1]
-		kHi := pow10[k] - 1
-
-		maxM := maxDigits / k
-		if maxRepeats > 0 && maxRepeats < maxM {
-			maxM = maxRepeats
+	sort.Slice(ranges, func(i, j int) bool {
+		if ranges[i].low != ranges[j].low {
+			return ranges[i].low < ranges[j].low
 		}
-		if maxM < minRepeats {
-			continue
-		}
-
-		// m is repeat count in [minRepeats, maxM]
-		for m := minRepeats; m <= maxM; m++ {
-			// Compute factor = 1 + 10^k + 10^{2k} + ... + 10^{(m-1)k}
-			km := k * m
-			if km >= len(pow10) {
-				// Out of precomputed range; safely stop as numbers would exceed our pow10 table
-				break
-			}
-			denom := pow10[k] - 1
-			if denom == 0 {
-				continue
-			}
-			numer := pow10[km] - 1
-			factor := numer / denom
-
-			hLo := kLo
-			hHi := kHi
-			boundLo := divCeil(lo, factor)
-			if boundLo > hLo {
-				hLo = boundLo
-			}
-			boundHi := hi / factor
-			if boundHi < hHi {
-				hHi = boundHi
-			}
-			if hLo > hHi {
-				continue
-			}
-
-			// Enumerate candidate base blocks and require primitive to avoid duplicates
-			for h := hLo; h <= hHi; h++ {
-				if !isPrimitiveBlock(h, k) {
-					continue
-				}
-				sum += h * factor
-			}
+		return ranges[i].high < ranges[j].high
+	})
+	merged := ranges[:0]
+	for _, next := range ranges {
+		if len(merged) == 0 || next.low > merged[len(merged)-1].high {
+			merged = append(merged, next)
+		} else if next.high > merged[len(merged)-1].high {
+			merged[len(merged)-1].high = next.high
 		}
 	}
+	return merged, nil
+}
 
+func sumPeriodInRange(low, high int64, width, period int) *big.Int {
+	power := int64(1)
+	for i := 0; i < period; i++ {
+		power *= 10
+	}
+	factor := int64(0)
+	for i := 0; i < width/period; i++ {
+		factor = factor*power + 1
+	}
+	first := low / factor
+	if low%factor != 0 {
+		first++
+	}
+	if first < power/10 {
+		first = power / 10
+	}
+	last := high / factor
+	if last >= power {
+		last = power - 1
+	}
+	if first > last {
+		return new(big.Int)
+	}
+	sum := big.NewInt(first + last)
+	sum.Mul(sum, big.NewInt(last-first+1))
+	sum.Quo(sum, big.NewInt(2))
+	sum.Mul(sum, big.NewInt(factor))
 	return sum
 }
 
-// isPrimitiveBlock returns true if the k-digit number h is not composed of
-// repeating a smaller digit block.
-func isPrimitiveBlock(h int64, k int) bool {
-	s := strconv.FormatInt(h, 10)
-	if len(s) != k {
-		if len(s) > k {
-			return false
-		}
-		s = strings.Repeat("0", k-len(s)) + s
+func sumDoublesInRange(low, high int64) *big.Int {
+	total := new(big.Int)
+	width := len(strconv.FormatInt(low, 10))
+	if width%2 != 0 {
+		width++
 	}
-	for d := 1; d <= k/2; d++ {
-		if k%d != 0 {
-			continue
-		}
-		base := s[:d]
-		// If base starts with '0', then repeating would start with '0', not a valid k-digit block
-		if base[0] == '0' {
-			continue
-		}
-		repeat := k / d
-		ok := true
-		for i := 1; i < repeat; i++ {
-			if s[i*d:(i+1)*d] != base {
-				ok = false
-				break
-			}
-		}
-		if ok {
-			return false
-		}
+	for ; width <= len(strconv.FormatInt(high, 10)); width += 2 {
+		total.Add(total, sumPeriodInRange(low, high, width, width/2))
 	}
-	return true
+	return total
 }
+
+func sumRepeatedAtLeastTwiceInRange(low, high int64) *big.Int {
+	total := new(big.Int)
+	for width := len(strconv.FormatInt(low, 10)); width <= len(strconv.FormatInt(high, 10)); width++ {
+		primitive := make([]*big.Int, width/2+1)
+		for period := 1; period <= width/2; period++ {
+			if width%period != 0 {
+				continue
+			}
+			sum := sumPeriodInRange(low, high, width, period)
+			for smaller := 1; smaller < period; smaller++ {
+				if period%smaller == 0 {
+					sum.Sub(sum, primitive[smaller])
+				}
+			}
+			primitive[period] = sum
+			total.Add(total, sum)
+		}
+	}
+	return total
+}
+
+func sumGiftShop(input string, anyRepeat bool) (string, error) {
+	ranges, err := parseGiftShopRanges(input)
+	if err != nil {
+		return "", err
+	}
+	total := new(big.Int)
+	for _, interval := range ranges {
+		if anyRepeat {
+			total.Add(total, sumRepeatedAtLeastTwiceInRange(interval.low, interval.high))
+		} else {
+			total.Add(total, sumDoublesInRange(interval.low, interval.high))
+		}
+	}
+	return total.String(), nil
+}
+func (d Day2) Part1(input string) (string, error) { return sumGiftShop(input, false) }
+func (d Day2) Part2(input string) (string, error) { return sumGiftShop(input, true) }
+func init()                                       { solve.Register(Day2{}) }
