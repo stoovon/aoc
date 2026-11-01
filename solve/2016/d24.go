@@ -1,7 +1,7 @@
 package solve2016
 
 import (
-	"image"
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -9,145 +9,175 @@ import (
 	"aoc/solve"
 )
 
-type Day24 struct {
-}
+type Day24 struct{}
 
 func (d Day24) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2016, Day: 24}
 }
 
-func (d Day24) parseInput(input string) (map[image.Point][]image.Point, []image.Point) {
-	lines := strings.Split(input, "\n")
-	nodes := make(map[image.Point][]image.Point)
-	points := make([]image.Point, 0)
+type ductMaze struct {
+	width, height int
+	cells         []byte
+	points        []int
+}
 
-	var grid [][]string
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		grid = append(grid, strings.Split(line, ""))
+func (d Day24) parseInput(input string) (ductMaze, error) {
+	var maze ductMaze
+	text := strings.TrimSuffix(strings.ReplaceAll(input, "\r\n", "\n"), "\n")
+	rows := strings.Split(text, "\n")
+	maze.width, maze.height = len(rows[0]), len(rows)
+	if maze.width == 0 {
+		return maze, fmt.Errorf("empty maze")
 	}
-
-	for y, row := range grid {
-		for x, item := range row {
-			if item == "#" {
+	if maze.height > math.MaxInt/maze.width {
+		return maze, fmt.Errorf("maze size exceeds int")
+	}
+	var labels [10]int
+	for i := range labels {
+		labels[i] = -1
+	}
+	for y, row := range rows {
+		if len(row) != maze.width {
+			return maze, fmt.Errorf("row %d: inconsistent width", y+1)
+		}
+		for x := 0; x < len(row); x++ {
+			cell := row[x]
+			if cell == '.' || cell == '#' {
 				continue
 			}
+			if cell < '0' || cell > '9' {
+				return maze, fmt.Errorf("row %d: expected wall, floor or numbered point", y+1)
+			}
+			label := int(cell - '0')
+			if labels[label] >= 0 {
+				return maze, fmt.Errorf("duplicate numbered point")
+			}
+			labels[label] = y*maze.width + x
+		}
+	}
+	if labels[0] < 0 {
+		return maze, fmt.Errorf("missing starting point zero")
+	}
+	maze.cells = make([]byte, 0, maze.width*maze.height)
+	for _, row := range rows {
+		maze.cells = append(maze.cells, row...)
+	}
+	for _, cell := range labels {
+		if cell >= 0 {
+			maze.points = append(maze.points, cell)
+		}
+	}
+	return maze, nil
+}
 
-			point := image.Point{X: x, Y: y}
-			nodes[point] = []image.Point{}
-
-			if num, err := strconv.Atoi(item); err == nil {
-				if len(points) <= num {
-					points = append(points, make([]image.Point, num-len(points)+1)...)
+func (maze ductMaze) distances() ([][]int, error) {
+	paths := make([][]int, len(maze.points))
+	distance := make([]int, len(maze.cells))
+	queue := make([]int, 0, len(maze.cells))
+	for index, start := range maze.points {
+		for i := range distance {
+			distance[i] = -1
+		}
+		queue = append(queue[:0], start)
+		distance[start] = 0
+		for head := 0; head < len(queue); head++ {
+			cell := queue[head]
+			x, y := cell%maze.width, cell/maze.width
+			for _, step := range [...][2]int{{0, -1}, {1, 0}, {0, 1}, {-1, 0}} {
+				nx, ny := x+step[0], y+step[1]
+				if nx < 0 || nx >= maze.width || ny < 0 || ny >= maze.height {
+					continue
 				}
-				points[num] = point
+				next := ny*maze.width + nx
+				if maze.cells[next] == '#' || distance[next] >= 0 {
+					continue
+				}
+				distance[next] = distance[cell] + 1
+				queue = append(queue, next)
 			}
 		}
-	}
-
-	for point := range nodes {
-		candidates := []image.Point{
-			{X: point.X + 1, Y: point.Y},
-			{X: point.X - 1, Y: point.Y},
-			{X: point.X, Y: point.Y + 1},
-			{X: point.X, Y: point.Y - 1},
-		}
-
-		for _, neighbor := range candidates {
-			if _, exists := nodes[neighbor]; exists {
-				nodes[point] = append(nodes[point], neighbor)
+		paths[index] = make([]int, len(maze.points))
+		for target, cell := range maze.points {
+			if distance[cell] < 0 {
+				return nil, fmt.Errorf("numbered points are disconnected")
 			}
+			paths[index][target] = distance[cell]
 		}
 	}
-
-	return nodes, points
+	return paths, nil
 }
 
-func (d Day24) bfs(nodes map[image.Point][]image.Point, points []image.Point, start int) []int {
-	queue := []struct {
-		Point image.Point
-		Time  int
-	}{{Point: points[start], Time: 0}}
-	visited := make(map[image.Point]bool)
-	visited[points[start]] = true
-
-	paths := make([]int, len(points))
-	for i := range paths {
-		paths[i] = math.MaxInt
+func (d Day24) shortestRoute(paths [][]int, returnToStart bool) (int, error) {
+	count := len(paths)
+	if count == 0 || count > 10 {
+		return 0, fmt.Errorf("expected one to ten numbered points")
 	}
-	paths[start] = 0
-
-	for len(queue) > 0 {
-		current := queue[0]
-		queue = queue[1:]
-
-		for i, point := range points {
-			if current.Point == point {
-				paths[i] = current.Time
-			}
+	for _, row := range paths {
+		if len(row) != count {
+			return 0, fmt.Errorf("incomplete distance matrix")
 		}
-
-		allVisited := true
-		for _, path := range paths {
-			if path == math.MaxInt {
-				allVisited = false
-				break
-			}
-		}
-		if allVisited {
-			return paths
-		}
-
-		for _, neighbor := range nodes[current.Point] {
-			if !visited[neighbor] {
-				queue = append(queue, struct {
-					Point image.Point
-					Time  int
-				}{Point: neighbor, Time: current.Time + 1})
-				visited[neighbor] = true
+		for _, distance := range row {
+			if distance < 0 {
+				return 0, fmt.Errorf("numbered points are disconnected")
 			}
 		}
 	}
-
-	return paths
-}
-
-func (d Day24) solve(paths [][]int, remaining []int, start, total int, returnToStart bool) int {
-	if len(remaining) == 0 {
-		if returnToStart {
-			return total + paths[start][0]
-		}
-		return total
+	// Cache remaining costs, independent of the route prefix that reached a state.
+	memo := make([]int, (1<<count)*count)
+	for i := range memo {
+		memo[i] = -1
 	}
-
-	minTotal := math.MaxInt
-	for i, key := range remaining {
-		newRemaining := append(append([]int{}, remaining[:i]...), remaining[i+1:]...)
-		cost := d.solve(paths, newRemaining, key, total+paths[start][key], returnToStart)
-		if cost < minTotal {
-			minTotal = cost
+	var visit func(int, int) int
+	visit = func(current, remaining int) int {
+		if remaining == 0 {
+			if returnToStart {
+				return paths[current][0]
+			}
+			return 0
 		}
+		key := remaining*count + current
+		if memo[key] != -1 {
+			return memo[key]
+		}
+		best := -2 // All routes from this state may exceed int.
+		for next := 1; next < count; next++ {
+			bit := 1 << next
+			if remaining&bit == 0 {
+				continue
+			}
+			tail := visit(next, remaining&^bit)
+			if tail < 0 || paths[current][next] > math.MaxInt-tail {
+				continue
+			}
+			cost := paths[current][next] + tail
+			if best < 0 || cost < best {
+				best = cost
+			}
+		}
+		memo[key] = best
+		return best
 	}
-
-	return minTotal
+	result := visit(0, ((1<<count)-1)&^1)
+	if result < 0 {
+		return 0, fmt.Errorf("route cost exceeds supported int range")
+	}
+	return result, nil
 }
 
 func (d Day24) solvePart(input string, returnToStart bool) (string, error) {
-	nodes, points := d.parseInput(input)
-
-	paths := make([][]int, len(points))
-	for i := range points {
-		paths[i] = d.bfs(nodes, points, i)
+	maze, err := d.parseInput(input)
+	if err != nil {
+		return "", err
+	}
+	paths, err := maze.distances()
+	if err != nil {
+		return "", err
 	}
 
-	remaining := make([]int, len(points)-1)
-	for i := range remaining {
-		remaining[i] = i + 1
+	result, err := d.shortestRoute(paths, returnToStart)
+	if err != nil {
+		return "", err
 	}
-
-	result := d.solve(paths, remaining, 0, 0, returnToStart)
 
 	return strconv.Itoa(result), nil
 }
