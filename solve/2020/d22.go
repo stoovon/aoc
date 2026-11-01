@@ -1,10 +1,14 @@
 package solve2020
 
 import (
-	"aoc/solve"
+	"encoding/binary"
 	"errors"
+	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
+
+	"aoc/solve"
 )
 
 type Day22 struct{}
@@ -18,8 +22,11 @@ func (d Day22) Part1(input string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	_, winner := playCombat(p1, p2, false)
-	return strconv.Itoa(scoreDeck(winner)), nil
+	winner, err := playStandardCombat(p1, p2)
+	if err != nil {
+		return "", err
+	}
+	return scoreDeck(winner), nil
 }
 
 func (d Day22) Part2(input string) (string, error) {
@@ -27,82 +34,147 @@ func (d Day22) Part2(input string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	_, winner := playCombat(p1, p2, true)
-	return strconv.Itoa(scoreDeck(winner)), nil
+	_, winner := playRecursiveCombat(p1, p2, make(map[combatState]int))
+	return scoreDeck(winner), nil
 }
 
 func parseDecks(input string) ([]int, []int, error) {
-	sections := strings.Split(strings.TrimSpace(input), "\n\n")
+	sections := strings.Split(strings.TrimSpace(strings.ReplaceAll(input, "\r\n", "\n")), "\n\n")
 	if len(sections) != 2 {
 		return nil, nil, errors.New("input must have two player decks")
 	}
-	parseDeck := func(s string) []int {
-		var deck []int
-		for _, line := range strings.Split(s, "\n")[1:] {
-			if line == "" { continue }
-			n, _ := strconv.Atoi(line)
-			deck = append(deck, n)
+	var decks [2][]int
+	used := make(map[int]bool)
+	for player, section := range sections {
+		lines := strings.Split(section, "\n")
+		if strings.TrimSpace(lines[0]) != fmt.Sprintf("Player %d:", player+1) {
+			return nil, nil, fmt.Errorf("player %d: invalid deck header", player+1)
 		}
-		return deck
-	}
-	return parseDeck(sections[0]), parseDeck(sections[1]), nil
-}
-
-func scoreDeck(deck []int) int {
-	score := 0
-	for i, v := range deck {
-		score += v * (len(deck) - i)
-	}
-	return score
-}
-
-func playCombat(p1, p2 []int, recursive bool) (int, []int) {
-	type state struct{ a, b string }
-	seen := make(map[state]struct{})
-	copyDeck := func(d []int, n int) []int {
-		out := make([]int, n)
-		copy(out, d[:n])
-		return out
-	}
-	joinInts := func(a []int) string {
-		if len(a) == 0 {
-			return ""
+		if len(lines) < 2 {
+			return nil, nil, fmt.Errorf("player %d: empty deck", player+1)
 		}
-		b := make([]byte, 0, len(a)*3)
-		for i, v := range a {
-			if i > 0 {
-				b = append(b, ',')
+		decks[player] = make([]int, 0, len(lines)-1)
+		for line, text := range lines[1:] {
+			text = strings.TrimSpace(text)
+			if text == "" {
+				return nil, nil, fmt.Errorf("player %d card %d: empty value", player+1, line+1)
 			}
-			b = strconv.AppendInt(b, int64(v), 10)
+			for i := 0; i < len(text); i++ {
+				if text[i] < '0' || text[i] > '9' {
+					return nil, nil, fmt.Errorf("player %d card %d: expected positive decimal int", player+1, line+1)
+				}
+			}
+			value, err := strconv.Atoi(text)
+			if err != nil || value == 0 {
+				return nil, nil, fmt.Errorf("player %d card %d: expected positive int", player+1, line+1)
+			}
+			if used[value] {
+				return nil, nil, errors.New("card values must be distinct across both decks")
+			}
+			used[value] = true
+			decks[player] = append(decks[player], value)
 		}
-		return string(b)
 	}
-	toKey := func(a, b []int) state {
-		return state{joinInts(a), joinInts(b)}
+	return decks[0], decks[1], nil
+}
+
+func scoreDeck(deck []int) string {
+	var score, term, weight big.Int
+	for i, value := range deck {
+		term.SetInt64(int64(value))
+		weight.SetInt64(int64(len(deck) - i))
+		term.Mul(&term, &weight)
+		score.Add(&score, &term)
 	}
+	return score.String()
+}
+
+type combatState string
+
+func combatKeyInto(buffer []byte, a, b []int) (combatState, []byte) {
+	buffer = buffer[:0]
+	buffer = binary.AppendUvarint(buffer, uint64(len(a)))
+	buffer = binary.AppendUvarint(buffer, uint64(len(b)))
+	for _, deck := range [2][]int{a, b} {
+		for _, value := range deck {
+			buffer = binary.AppendUvarint(buffer, uint64(value))
+		}
+	}
+	// Conversion copies the scratch bytes; retained keys must stay immutable.
+	return combatState(string(buffer)), buffer
+}
+
+func combatKey(a, b []int) combatState {
+	key, _ := combatKeyInto(nil, a, b)
+	return key
+}
+
+func copyCombatDeck(deck []int, count int) []int {
+	result := make([]int, count)
+	copy(result, deck[:count])
+	return result
+}
+
+func awardCombatRound(p1, p2 []int, c1, c2, winner int) ([]int, []int) {
+	if winner == 1 {
+		p1 = append(p1, c1, c2)
+	} else {
+		p2 = append(p2, c2, c1)
+	}
+	return p1, p2
+}
+
+func playStandardCombat(p1, p2 []int) ([]int, error) {
+	seen := make(map[combatState]struct{})
+	var buffer []byte
 	for len(p1) > 0 && len(p2) > 0 {
-		if recursive {
-			k := toKey(p1, p2)
-			if _, ok := seen[k]; ok {
-				return 1, p1
-			}
-			seen[k] = struct{}{}
+		var state combatState
+		state, buffer = combatKeyInto(buffer, p1, p2)
+		if _, repeat := seen[state]; repeat {
+			return nil, errors.New("ordinary combat does not terminate")
 		}
+		seen[state] = struct{}{}
 		c1, c2 := p1[0], p2[0]
 		p1, p2 = p1[1:], p2[1:]
-		var winner int
-		if recursive && len(p1) >= c1 && len(p2) >= c2 {
-			winner, _ = playCombat(copyDeck(p1, c1), copyDeck(p2, c2), true)
+		winner := 2
+		if c1 > c2 {
+			winner = 1
+		}
+		p1, p2 = awardCombatRound(p1, p2, c1, c2, winner)
+	}
+	if len(p1) > 0 {
+		return p1, nil
+	}
+	return p2, nil
+}
+
+func playRecursiveCombat(p1, p2 []int, winners map[combatState]int) (int, []int) {
+	// A repeated round state only counts within this particular game.
+	seen := make(map[combatState]struct{})
+	var buffer []byte
+	for len(p1) > 0 && len(p2) > 0 {
+		var state combatState
+		state, buffer = combatKeyInto(buffer, p1, p2)
+		if _, repeat := seen[state]; repeat {
+			return 1, p1
+		}
+		seen[state] = struct{}{}
+		c1, c2 := p1[0], p2[0]
+		p1, p2 = p1[1:], p2[1:]
+		winner := 2
+		if len(p1) >= c1 && len(p2) >= c2 {
+			var initial combatState
+			initial, buffer = combatKeyInto(buffer, p1[:c1], p2[:c2])
+			var cached bool
+			winner, cached = winners[initial]
+			if !cached {
+				winner, _ = playRecursiveCombat(copyCombatDeck(p1, c1), copyCombatDeck(p2, c2), winners)
+				winners[initial] = winner
+			}
 		} else if c1 > c2 {
 			winner = 1
-		} else {
-			winner = 2
 		}
-		if winner == 1 {
-			p1 = append(p1, c1, c2)
-		} else {
-			p2 = append(p2, c2, c1)
-		}
+		p1, p2 = awardCombatRound(p1, p2, c1, c2, winner)
 	}
 	if len(p1) > 0 {
 		return 1, p1
