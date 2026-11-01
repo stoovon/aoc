@@ -1,21 +1,27 @@
 package solve2018
 
 import (
-	"aoc/solve"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
+
+	"aoc/solve"
 )
 
-type Day2 struct {
-}
+type Day2 struct{}
 
 func (Day2) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2018, Day: 2}
 }
 
 func (Day2) Part1(input string) (string, error) {
-	var twos, threes int
-	for _, boxID := range strings.Split(input, "\n") {
+	ids, err := inventoryIDs(input)
+	if err != nil {
+		return "", err
+	}
+	var twos, threes uint64
+	for _, boxID := range ids {
 		charCounts := getCharCount(boxID)
 		for _, v := range charCounts {
 			if v == 2 {
@@ -26,11 +32,15 @@ func (Day2) Part1(input string) (string, error) {
 		for _, v := range charCounts {
 			if v == 3 {
 				threes++
+				break
 			}
 		}
 	}
 
-	return fmt.Sprintf("%d", twos*threes), nil
+	if threes != 0 && twos > math.MaxUint64/threes {
+		return "", fmt.Errorf("checksum exceeds uint64")
+	}
+	return strconv.FormatUint(twos*threes, 10), nil
 }
 
 func getCharCount(box string) map[rune]int {
@@ -42,29 +52,54 @@ func getCharCount(box string) map[rune]int {
 }
 
 func (Day2) Part2(input string) (string, error) {
-	lines := strings.Split(input, "\n")
+	lines, err := inventoryIDs(input)
+	if err != nil {
+		return "", err
+	}
 	for i := 0; i < len(lines); i++ {
-		for j := i + 1; j < len(lines)-1; j++ {
-			if sameChars := getSameCharacters(lines[i], lines[j]); sameChars != "" {
+		for j := i + 1; j < len(lines); j++ {
+			if sameChars, matches := commonLetters(lines[i], lines[j]); matches {
 				return sameChars, nil
 			}
 		}
 	}
-	return "", nil
+	return "", fmt.Errorf("no IDs differ at exactly one position")
 }
-func getSameCharacters(str1, str2 string) string {
-	var mismatchSeen bool
-	var sameChars string
-	for i := 0; i < len(str1); i++ {
-		if str1[i] == str2[i] {
-			sameChars += string(str1[i])
-		} else if mismatchSeen {
-			return ""
-		} else {
-			mismatchSeen = true
+func inventoryIDs(input string) ([]string, error) {
+	ids := strings.Split(strings.TrimSuffix(input, "\n"), "\n")
+	for line, id := range ids {
+		id = strings.TrimSuffix(id, "\r")
+		if id == "" {
+			return nil, fmt.Errorf("line %d: empty box ID", line+1)
 		}
+		for i := 0; i < len(id); i++ {
+			if id[i] < 'a' || id[i] > 'z' {
+				return nil, fmt.Errorf("line %d: box IDs must contain lowercase ASCII letters", line+1)
+			}
+		}
+		ids[line] = id
 	}
-	return sameChars
+	return ids, nil
+}
+
+func commonLetters(first, second string) (string, bool) {
+	if len(first) != len(second) {
+		return "", false
+	}
+	mismatch := -1
+	for i := 0; i < len(first); i++ {
+		if first[i] == second[i] {
+			continue
+		}
+		if mismatch >= 0 {
+			return "", false
+		}
+		mismatch = i
+	}
+	if mismatch < 0 {
+		return "", false
+	}
+	return first[:mismatch] + first[mismatch+1:], true
 }
 
 func init() {
