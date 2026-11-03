@@ -1,26 +1,344 @@
 package solve2025
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
-	"runtime"
-	"sort"
+	"math"
+	"slices"
 	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 
 	"aoc/solve"
 )
 
-// diabolicalMode: the real input is crafted so area check alone works.
-const diabolicalMode = true
-
-type Day12 struct {
+type Day12 struct{}
+type day12Point struct{ x, y int }
+type day12Shape struct {
+	cells        []day12Point
+	orientations [][]day12Point
+}
+type day12Region struct {
+	w, h   int
+	counts []int
+	line   int
 }
 
-func (d Day12) Coords() solve.SolutionCoords {
-	return solve.SolutionCoords{Year: 2025, Day: 12}
+func (d Day12) Coords() solve.SolutionCoords { return solve.SolutionCoords{Year: 2025, Day: 12} }
+
+func day12Number(text string) (int, error) {
+	if text == "" {
+		return 0, errors.New("expected a nonnegative decimal integer")
+	}
+	for _, b := range []byte(text) {
+		if b < '0' || b > '9' {
+			return 0, errors.New("expected a nonnegative decimal integer")
+		}
+	}
+	return strconv.Atoi(text)
+}
+
+func parseDay12(input string) ([]day12Shape, []day12Region, error) {
+	lines := strings.Split(strings.ReplaceAll(input, "\r\n", "\n"), "\n")
+	shapesByIndex := make(map[int]day12Shape)
+	var regions []day12Region
+	regionPhase := false
+	for index := 0; index < len(lines); {
+		line := strings.TrimSpace(lines[index])
+		lineNumber := index + 1
+		index++
+		if line == "" {
+			continue
+		}
+		label, rest, ok := strings.Cut(line, ":")
+		if !ok {
+			return nil, nil, fmt.Errorf("line %d: expected a shape header or region", lineNumber)
+		}
+		label = strings.TrimSpace(label)
+		if strings.Contains(label, "x") || regionPhase {
+			regionPhase = true
+			wText, hText, ok := strings.Cut(label, "x")
+			if !ok {
+				return nil, nil, fmt.Errorf("line %d: expected widthxheight", lineNumber)
+			}
+			w, err := day12Number(strings.TrimSpace(wText))
+			if err != nil {
+				return nil, nil, fmt.Errorf("line %d: width: %w", lineNumber, err)
+			}
+			h, err := day12Number(strings.TrimSpace(hText))
+			if err != nil {
+				return nil, nil, fmt.Errorf("line %d: height: %w", lineNumber, err)
+			}
+			if w == 0 || h == 0 {
+				return nil, nil, fmt.Errorf("line %d: region dimensions must be positive", lineNumber)
+			}
+			fields := strings.Fields(rest)
+			if len(fields) != len(shapesByIndex) {
+				return nil, nil, fmt.Errorf("line %d: expected one count per shape", lineNumber)
+			}
+			counts := make([]int, len(fields))
+			for i, field := range fields {
+				value, err := day12Number(field)
+				if err != nil {
+					return nil, nil, fmt.Errorf("line %d: count: %w", lineNumber, err)
+				}
+				counts[i] = value
+			}
+			regions = append(regions, day12Region{w, h, counts, lineNumber})
+			continue
+		}
+		shapeIndex, err := day12Number(label)
+		if err != nil || strings.TrimSpace(rest) != "" {
+			return nil, nil, fmt.Errorf("line %d: expected a numbered shape header", lineNumber)
+		}
+		if _, exists := shapesByIndex[shapeIndex]; exists {
+			return nil, nil, fmt.Errorf("line %d: duplicate shape index", lineNumber)
+		}
+		var cells []day12Point
+		width, height := 0, 0
+		for index < len(lines) && strings.TrimSpace(lines[index]) != "" {
+			row := strings.TrimSpace(lines[index])
+			index++
+			if width == 0 {
+				width = len(row)
+			}
+			if len(row) != width {
+				return nil, nil, fmt.Errorf("line %d: shape rows must have equal width", index)
+			}
+			for x, b := range []byte(row) {
+				switch b {
+				case '#':
+					cells = append(cells, day12Point{x, height})
+				case '.':
+				default:
+					return nil, nil, fmt.Errorf("line %d: shape rows may contain only '.' and '#'", index)
+				}
+			}
+			height++
+		}
+		if len(cells) == 0 {
+			return nil, nil, fmt.Errorf("line %d: shape must contain an occupied cell", lineNumber)
+		}
+		cells = day12NormalizePoints(cells)
+		shapesByIndex[shapeIndex] = day12Shape{cells, day12GenerateOrientations(cells)}
+	}
+	if len(shapesByIndex) == 0 || len(regions) == 0 {
+		return nil, nil, errors.New("expected shapes and at least one region")
+	}
+	shapes := make([]day12Shape, len(shapesByIndex))
+	for i := range shapes {
+		shape, ok := shapesByIndex[i]
+		if !ok {
+			return nil, nil, fmt.Errorf("missing shape index %d", i)
+		}
+		shapes[i] = shape
+	}
+	return shapes, regions, nil
+}
+
+func day12NormalizePoints(points []day12Point) []day12Point {
+	minX, minY := points[0].x, points[0].y
+	for _, p := range points {
+		minX = min(minX, p.x)
+		minY = min(minY, p.y)
+	}
+	for i := range points {
+		points[i].x -= minX
+		points[i].y -= minY
+	}
+	slices.SortFunc(points, func(a, b day12Point) int {
+		if a.y != b.y {
+			return cmp.Compare(a.y, b.y)
+		}
+		return cmp.Compare(a.x, b.x)
+	})
+	return points
+}
+
+func day12GenerateOrientations(cells []day12Point) [][]day12Point {
+	seen := make(map[string]bool)
+	var orientations [][]day12Point
+	for rotation := 0; rotation < 4; rotation++ {
+		for reflection := 0; reflection < 2; reflection++ {
+			transformed := make([]day12Point, len(cells))
+			for i, p := range cells {
+				for turn := 0; turn < rotation; turn++ {
+					p.x, p.y = -p.y, p.x
+				}
+				if reflection == 1 {
+					p.x = -p.x
+				}
+				transformed[i] = p
+			}
+			transformed = day12NormalizePoints(transformed)
+			var key strings.Builder
+			for _, p := range transformed {
+				fmt.Fprintf(&key, "%d,%d;", p.x, p.y)
+			}
+			encoded := key.String()
+			if !seen[encoded] {
+				seen[encoded] = true
+				orientations = append(orientations, transformed)
+			}
+		}
+	}
+	return orientations
+}
+
+func day12Product(a, b int) (int, error) {
+	if a < 0 || b < 0 || (b != 0 && a > math.MaxInt/b) {
+		return 0, errors.New("packing arithmetic exceeds the integer range")
+	}
+	return a * b, nil
+}
+
+func day12Bounds(cells []day12Point) (int, int) {
+	width, height := 0, 0
+	for _, p := range cells {
+		width = max(width, p.x+1)
+		height = max(height, p.y+1)
+	}
+	return width, height
+}
+
+func canFitRegion(region day12Region, shapes []day12Shape) (bool, error) {
+	area, err := day12Product(region.w, region.h)
+	if err != nil {
+		return false, err
+	}
+	needed, pieces, boxWidth, boxHeight := 0, 0, 1, 1
+	for i, count := range region.counts {
+		cells, err := day12Product(count, len(shapes[i].cells))
+		if err != nil {
+			return false, err
+		}
+		if needed > math.MaxInt-cells {
+			return false, errors.New("total occupied area exceeds the integer range")
+		}
+		needed += cells
+		if pieces > math.MaxInt-count {
+			return false, errors.New("piece count exceeds the integer range")
+		}
+		pieces += count
+		if count > 0 {
+			w, h := day12Bounds(shapes[i].cells)
+			boxWidth = max(boxWidth, w)
+			boxHeight = max(boxHeight, h)
+		}
+	}
+	if needed > area {
+		return false, nil
+	}
+	if pieces <= (region.w/boxWidth)*(region.h/boxHeight) || pieces <= (region.w/boxHeight)*(region.h/boxWidth) {
+		return true, nil
+	}
+	return day12ExactFit(region, shapes, 2000000)
+}
+
+type day12PackingType struct {
+	count      int
+	placements [][]int
+	minimum    int
+}
+
+func day12ExactFit(region day12Region, shapes []day12Shape, nodeBudget int) (bool, error) {
+	area, err := day12Product(region.w, region.h)
+	if err != nil {
+		return false, err
+	}
+	if area > 4096 {
+		return false, errors.New("undecided region exceeds the exact packing board budget")
+	}
+	var types []day12PackingType
+	placementCells := 0
+	for i, count := range region.counts {
+		if count == 0 {
+			continue
+		}
+		piece := day12PackingType{count: count}
+		for _, orientation := range shapes[i].orientations {
+			width, height := day12Bounds(orientation)
+			for y := 0; y <= region.h-height; y++ {
+				for x := 0; x <= region.w-width; x++ {
+					if placementCells > 1000000-len(orientation) {
+						return false, errors.New("exact packing placements exceed the storage budget")
+					}
+					placement := make([]int, len(orientation))
+					for j, p := range orientation {
+						placement[j] = (y+p.y)*region.w + x + p.x
+					}
+					piece.placements = append(piece.placements, placement)
+					placementCells += len(orientation)
+				}
+			}
+		}
+		if len(piece.placements) < count {
+			return false, nil
+		}
+		types = append(types, piece)
+	}
+	occupied := make([]bool, area)
+	fits := func(placement []int) bool {
+		for _, cell := range placement {
+			if occupied[cell] {
+				return false
+			}
+		}
+		return true
+	}
+	var search func() (bool, error)
+	search = func() (bool, error) {
+		chosen, options := -1, math.MaxInt
+		for i, piece := range types {
+			if piece.count == 0 {
+				continue
+			}
+			available := 0
+			for _, placement := range piece.placements[piece.minimum:] {
+				if fits(placement) {
+					available++
+				}
+			}
+			if available < piece.count {
+				return false, nil
+			}
+			if available < options {
+				chosen, options = i, available
+			}
+		}
+		if chosen < 0 {
+			return true, nil
+		}
+		if nodeBudget <= 0 {
+			return false, errors.New("exact packing search exceeds the node budget")
+		}
+		nodeBudget--
+		piece := &types[chosen]
+		minimum := piece.minimum
+		piece.count--
+		for index := minimum; index < len(piece.placements); index++ {
+			placement := piece.placements[index]
+			if !fits(placement) {
+				continue
+			}
+			for _, cell := range placement {
+				occupied[cell] = true
+			}
+			piece.minimum = index + 1
+			result, err := search()
+			for _, cell := range placement {
+				occupied[cell] = false
+			}
+			piece.minimum = minimum
+			if err != nil || result {
+				piece.count++
+				return result, err
+			}
+		}
+		piece.count++
+		return false, nil
+	}
+	return search()
 }
 
 func (d Day12) Part1(input string) (string, error) {
@@ -28,511 +346,18 @@ func (d Day12) Part1(input string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	if diabolicalMode {
-		var ok int64
-		for _, r := range regions {
-			area := r.w * r.h
-			needed := 0
-			for i, c := range r.counts {
-				needed += c * shapes[i].cellCount
-			}
-			if needed <= area {
-				ok++
-			}
+	count := 0
+	for _, region := range regions {
+		fits, err := canFitRegion(region, shapes)
+		if err != nil {
+			return "", fmt.Errorf("line %d: %w", region.line, err)
 		}
-		return strconv.FormatInt(ok, 10), nil
+		if fits {
+			count++
+		}
 	}
-
-	numWorkers := runtime.NumCPU()
-	var ok int64
-
-	type job struct {
-		r day12Region
-	}
-	jobs := make(chan job, len(regions))
-	var wg sync.WaitGroup
-
-	for w := 0; w < numWorkers; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := range jobs {
-				if canFitRegion(j.r.w, j.r.h, j.r.counts, shapes) {
-					atomic.AddInt64(&ok, 1)
-				}
-			}
-		}()
-	}
-
-	for _, r := range regions {
-		jobs <- job{r: r}
-	}
-	close(jobs)
-	wg.Wait()
-
-	return strconv.FormatInt(ok, 10), nil
+	return strconv.Itoa(count), nil
 }
+func (d Day12) Part2(input string) (string, error) { return "", errors.New("not implemented") }
 
-func (d Day12) Part2(input string) (string, error) {
-	return "", errors.New("not implemented")
-}
-
-func init() {
-	solve.Register(Day12{})
-}
-
-type day12Point struct {
-	x int
-	y int
-}
-
-type day12Shape struct {
-	index        int
-	cells        []day12Point // normalized
-	cellCount    int
-	orientations [][]day12Point // each normalized
-}
-
-type day12Region struct {
-	w      int
-	h      int
-	counts []int // counts by shape index
-}
-
-func parseDay12(input string) ([]day12Shape, []day12Region, error) {
-	lines := strings.Split(strings.ReplaceAll(input, "\r\n", "\n"), "\n")
-
-	shapesByIdx := map[int]day12Shape{}
-	maxIdx := -1
-	idx := 0
-	for idx < len(lines) {
-		line := strings.TrimSpace(lines[idx])
-		if line == "" {
-			idx++
-			continue
-		}
-
-		if _, _, _, ok := parseDay12RegionLine(line); ok {
-			break
-		}
-
-		shapeIndex, ok := parseDay12ShapeHeader(line)
-		if !ok {
-			return nil, nil, fmt.Errorf("day12: expected shape header or region line, got %q", line)
-		}
-		idx++
-
-		var grid []string
-		for idx < len(lines) {
-			row := strings.TrimSpace(lines[idx])
-			if row == "" {
-				break
-			}
-			for _, ch := range row {
-				if ch != '.' && ch != '#' {
-					return nil, nil, fmt.Errorf("day12: invalid shape row %q", row)
-				}
-			}
-			grid = append(grid, row)
-			idx++
-		}
-
-		if len(grid) == 0 {
-			return nil, nil, fmt.Errorf("day12: shape %d has no grid", shapeIndex)
-		}
-
-		cells := make([]day12Point, 0)
-		for y, row := range grid {
-			for x := 0; x < len(row); x++ {
-				if row[x] == '#' {
-					cells = append(cells, day12Point{x: x, y: y})
-				}
-			}
-		}
-		if len(cells) == 0 {
-			return nil, nil, fmt.Errorf("day12: shape %d has zero # cells", shapeIndex)
-		}
-
-		cells = day12NormalizePoints(cells)
-		shape := day12Shape{index: shapeIndex, cells: cells, cellCount: len(cells)}
-		shape.orientations = day12GenerateOrientations(shape.cells)
-		shapesByIdx[shapeIndex] = shape
-		if shapeIndex > maxIdx {
-			maxIdx = shapeIndex
-		}
-
-		for idx < len(lines) && strings.TrimSpace(lines[idx]) == "" {
-			idx++
-		}
-	}
-
-	if maxIdx < 0 {
-		return nil, nil, fmt.Errorf("day12: no shapes found")
-	}
-
-	shapes := make([]day12Shape, maxIdx+1)
-	for i := 0; i <= maxIdx; i++ {
-		shape, ok := shapesByIdx[i]
-		if !ok {
-			return nil, nil, fmt.Errorf("day12: missing shape index %d", i)
-		}
-		shapes[i] = shape
-	}
-
-	regions := make([]day12Region, 0)
-	for idx < len(lines) {
-		line := strings.TrimSpace(lines[idx])
-		idx++
-		if line == "" {
-			continue
-		}
-		w, h, counts, ok := parseDay12RegionLine(line)
-		if !ok {
-			return nil, nil, fmt.Errorf("day12: expected region line, got %q", line)
-		}
-		if w <= 0 || h <= 0 {
-			return nil, nil, fmt.Errorf("day12: invalid region dimensions %dx%d", w, h)
-		}
-		if len(counts) > len(shapes) {
-			return nil, nil, fmt.Errorf("day12: region references %d shapes but only %d defined", len(counts), len(shapes))
-		}
-		if len(counts) < len(shapes) {
-			padded := make([]int, len(shapes))
-			copy(padded, counts)
-			counts = padded
-		}
-		regions = append(regions, day12Region{w: w, h: h, counts: counts})
-	}
-
-	return shapes, regions, nil
-}
-
-func parseDay12ShapeHeader(line string) (int, bool) {
-	line = strings.TrimSpace(line)
-	if !strings.HasSuffix(line, ":") {
-		return 0, false
-	}
-	nStr := strings.TrimSpace(strings.TrimSuffix(line, ":"))
-	if nStr == "" {
-		return 0, false
-	}
-	n, err := strconv.Atoi(nStr)
-	if err != nil || n < 0 {
-		return 0, false
-	}
-	return n, true
-}
-
-func parseDay12RegionLine(line string) (w, h int, counts []int, ok bool) {
-	line = strings.TrimSpace(line)
-	colon := strings.IndexByte(line, ':')
-	if colon < 0 {
-		return 0, 0, nil, false
-	}
-	dims := strings.TrimSpace(line[:colon])
-	rest := strings.TrimSpace(line[colon+1:])
-
-	x := strings.IndexByte(dims, 'x')
-	if x < 0 {
-		return 0, 0, nil, false
-	}
-	wStr := strings.TrimSpace(dims[:x])
-	hStr := strings.TrimSpace(dims[x+1:])
-	if wStr == "" || hStr == "" {
-		return 0, 0, nil, false
-	}
-
-	wParsed, err := strconv.Atoi(wStr)
-	if err != nil {
-		return 0, 0, nil, false
-	}
-	hParsed, err := strconv.Atoi(hStr)
-	if err != nil {
-		return 0, 0, nil, false
-	}
-
-	counts = []int{}
-	if rest != "" {
-		fields := strings.Fields(rest)
-		counts = make([]int, 0, len(fields))
-		for _, f := range fields {
-			v, err := strconv.Atoi(f)
-			if err != nil {
-				return 0, 0, nil, false
-			}
-			if v < 0 {
-				return 0, 0, nil, false
-			}
-			counts = append(counts, v)
-		}
-	}
-
-	return wParsed, hParsed, counts, true
-}
-
-type day12PieceType struct {
-	shapeIdx  int
-	cellCount int
-	cellIndex [][]int    // cellIndex[cell] = list of placement indices covering that cell
-	plMinCell []int      // plMinCell[pi] = minimum cell index covered by placement pi
-	plMulti   [][]uint64 // multi-word placements
-}
-
-func canFitRegion(w, h int, counts []int, shapes []day12Shape) bool {
-	area := w * h
-	total := 0
-	for i, c := range counts {
-		if c == 0 {
-			continue
-		}
-		if i < 0 || i >= len(shapes) {
-			return false
-		}
-		total += c * shapes[i].cellCount
-		if total > area {
-			return false
-		}
-	}
-
-	pieceTypes := make([]day12PieceType, 0)
-	countsCopy := make([]int, 0)
-	for i, c := range counts {
-		if c == 0 {
-			continue
-		}
-		pt := day12BuildPieceType(w, h, area, shapes[i])
-		if len(pt.plMulti) == 0 {
-			return false
-		}
-		pt.shapeIdx = i
-		pieceTypes = append(pieceTypes, pt)
-		countsCopy = append(countsCopy, c)
-	}
-
-	// Sort by cell count descending for better pruning.
-	for i := 0; i < len(pieceTypes)-1; i++ {
-		for j := i + 1; j < len(pieceTypes); j++ {
-			if pieceTypes[j].cellCount > pieceTypes[i].cellCount {
-				pieceTypes[i], pieceTypes[j] = pieceTypes[j], pieceTypes[i]
-				countsCopy[i], countsCopy[j] = countsCopy[j], countsCopy[i]
-			}
-		}
-	}
-
-	words := (area + 63) / 64
-	occupied := make([]uint64, words)
-	// minPlacement[ti] = minimum placement index that next piece of type ti can use (symmetry breaking)
-	minPlacement := make([]int, len(pieceTypes))
-	return day12SearchOpt(countsCopy, pieceTypes, occupied, minPlacement)
-}
-
-// day12SearchOpt: piece-centric search with MRV heuristic + symmetry breaking.
-func day12SearchOpt(counts []int, pts []day12PieceType, occupied []uint64, minPlacement []int) bool {
-	// Find piece type with fewest valid placements (MRV heuristic).
-	bestType := -1
-	bestCount := 1 << 30
-
-	for ti, pt := range pts {
-		if counts[ti] <= 0 {
-			continue
-		}
-		cnt := 0
-		threshold := minPlacement[ti]
-		for pi := threshold; pi < len(pt.plMulti); pi++ {
-			if !day12IntersectsMulti(occupied, pt.plMulti[pi]) {
-				cnt++
-				if cnt > bestCount {
-					break // Early exit: this type has more options than current best
-				}
-			}
-		}
-		if cnt == 0 {
-			return false // No valid placements for a piece we need to place
-		}
-		if cnt < bestCount {
-			bestCount = cnt
-			bestType = ti
-			if bestCount == 1 {
-				break // Can't do better than 1
-			}
-		}
-	}
-
-	if bestType < 0 {
-		return true
-	}
-
-	pt := pts[bestType]
-	threshold := minPlacement[bestType]
-	counts[bestType]--
-
-	for pi := threshold; pi < len(pt.plMulti); pi++ {
-		bits := pt.plMulti[pi]
-		if day12IntersectsMulti(occupied, bits) {
-			continue
-		}
-
-		day12OrInMulti(occupied, bits)
-		oldThreshold := minPlacement[bestType]
-		minPlacement[bestType] = pi + 1 // Symmetry: next piece of same type must use higher index
-
-		if day12SearchOpt(counts, pts, occupied, minPlacement) {
-			return true
-		}
-
-		minPlacement[bestType] = oldThreshold
-		day12AndNotInMulti(occupied, bits)
-	}
-
-	counts[bestType]++
-	return false
-}
-
-func day12IntersectsMulti(a, b []uint64) bool {
-	for i := range a {
-		if (a[i] & b[i]) != 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func day12OrInMulti(dst, src []uint64) {
-	for i := range dst {
-		dst[i] |= src[i]
-	}
-}
-
-func day12AndNotInMulti(dst, src []uint64) {
-	for i := range dst {
-		dst[i] &^= src[i]
-	}
-}
-
-func day12BuildPieceType(w, h, area int, shape day12Shape) day12PieceType {
-	pt := day12PieceType{
-		cellCount: shape.cellCount,
-		cellIndex: make([][]int, area),
-	}
-	for c := 0; c < area; c++ {
-		pt.cellIndex[c] = []int{}
-	}
-
-	words := (area + 63) / 64
-
-	plIdx := 0
-	for _, ori := range shape.orientations {
-		maxX, maxY := 0, 0
-		for _, p := range ori {
-			if p.x > maxX {
-				maxX = p.x
-			}
-			if p.y > maxY {
-				maxY = p.y
-			}
-		}
-		shapeW := maxX + 1
-		shapeH := maxY + 1
-		if shapeW > w || shapeH > h {
-			continue
-		}
-
-		for oy := 0; oy <= h-shapeH; oy++ {
-			for ox := 0; ox <= w-shapeW; ox++ {
-				bitsMulti := make([]uint64, words)
-
-				cells := make([]int, 0, len(ori))
-				minCell := area // Track minimum cell for symmetry breaking
-				for _, p := range ori {
-					x := ox + p.x
-					y := oy + p.y
-					idx := y*w + x
-					cells = append(cells, idx)
-					bitsMulti[idx/64] |= 1 << uint(idx%64)
-					if idx < minCell {
-						minCell = idx
-					}
-				}
-
-				pt.plMulti = append(pt.plMulti, bitsMulti)
-				pt.plMinCell = append(pt.plMinCell, minCell)
-
-				for _, c := range cells {
-					pt.cellIndex[c] = append(pt.cellIndex[c], plIdx)
-				}
-				plIdx++
-			}
-		}
-	}
-
-	return pt
-}
-
-func day12GenerateOrientations(cells []day12Point) [][]day12Point {
-	seen := map[string]struct{}{}
-	oris := make([][]day12Point, 0, 8)
-
-	for rot := 0; rot < 4; rot++ {
-		for flip := 0; flip < 2; flip++ {
-			pts := make([]day12Point, len(cells))
-			for i, p := range cells {
-				x, y := p.x, p.y
-				for r := 0; r < rot; r++ {
-					x, y = -y, x
-				}
-				if flip == 1 {
-					x = -x
-				}
-				pts[i] = day12Point{x: x, y: y}
-			}
-
-			pts = day12NormalizePoints(pts)
-			key := day12EncodePoints(pts)
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			oris = append(oris, pts)
-		}
-	}
-
-	return oris
-}
-
-func day12NormalizePoints(pts []day12Point) []day12Point {
-	minX, minY := pts[0].x, pts[0].y
-	for _, p := range pts {
-		if p.x < minX {
-			minX = p.x
-		}
-		if p.y < minY {
-			minY = p.y
-		}
-	}
-	for i := range pts {
-		pts[i].x -= minX
-		pts[i].y -= minY
-	}
-	sort.Slice(pts, func(i, j int) bool {
-		if pts[i].y == pts[j].y {
-			return pts[i].x < pts[j].x
-		}
-		return pts[i].y < pts[j].y
-	})
-	return pts
-}
-
-func day12EncodePoints(pts []day12Point) string {
-	// Small N (polyomino cell counts), so string encoding is fine.
-	var b strings.Builder
-	for i, p := range pts {
-		if i > 0 {
-			b.WriteByte(';')
-		}
-		b.WriteString(strconv.Itoa(p.x))
-		b.WriteByte(',')
-		b.WriteString(strconv.Itoa(p.y))
-	}
-	return b.String()
-}
+func init() { solve.Register(Day12{}) }
