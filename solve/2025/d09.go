@@ -2,309 +2,246 @@ package solve2025
 
 import (
 	"errors"
+	"fmt"
+	"math"
+	"slices"
 	"strconv"
 	"strings"
 
 	"aoc/solve"
 )
 
-type Day9 struct {
-}
+type Day9 struct{}
+
+type theaterPoint struct{ x, y int64 }
 
 func (d Day9) Coords() solve.SolutionCoords {
 	return solve.SolutionCoords{Year: 2025, Day: 9}
 }
 
-func (d Day9) Part1(input string) (string, error) {
-	lines := strings.Split(strings.TrimSpace(input), "\n")
-	type point struct {
-		x, y int64
-	}
-	var pts []point
-
-	for _, line := range lines {
+func parseTheaterPoints(input string) ([]theaterPoint, error) {
+	var points []theaterPoint
+	for index, line := range strings.Split(input, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		parts := strings.Split(line, ",")
-		if len(parts) != 2 {
-			return "", errors.New("invalid line: " + line)
+		xText, yText, ok := strings.Cut(line, ",")
+		if !ok {
+			return nil, fmt.Errorf("line %d: expected x,y coordinates", index+1)
 		}
-		xStr := strings.TrimSpace(parts[0])
-		yStr := strings.TrimSpace(parts[1])
-
-		x, err := strconv.ParseInt(xStr, 10, 64)
+		x, err := strconv.ParseInt(strings.TrimSpace(xText), 10, 64)
 		if err != nil {
-			return "", err
+			return nil, fmt.Errorf("line %d: x coordinate: %w", index+1, err)
 		}
-		y, err := strconv.ParseInt(yStr, 10, 64)
+		y, err := strconv.ParseInt(strings.TrimSpace(yText), 10, 64)
 		if err != nil {
-			return "", err
+			return nil, fmt.Errorf("line %d: y coordinate: %w", index+1, err)
 		}
-		pts = append(pts, point{x: x, y: y})
+		points = append(points, theaterPoint{x, y})
 	}
+	if len(points) < 2 {
+		return nil, errors.New("at least two red tiles are required")
+	}
+	return points, nil
+}
 
+func theaterArea(a, b theaterPoint) (int64, error) {
+	width := uint64(max(a.x, b.x)) - uint64(min(a.x, b.x))
+	height := uint64(max(a.y, b.y)) - uint64(min(a.y, b.y))
+	if width >= math.MaxInt64 || height >= math.MaxInt64 {
+		return 0, errors.New("rectangle dimensions exceed int64")
+	}
+	w, h := int64(width)+1, int64(height)+1
+	if w > math.MaxInt64/h {
+		return 0, errors.New("rectangle area exceeds int64")
+	}
+	return w * h, nil
+}
+
+func theaterEdgesIntersect(a, b, c, d theaterPoint) bool {
+	if a.x == b.x && c.x == d.x {
+		return a.x == c.x && max(min(a.y, b.y), min(c.y, d.y)) <= min(max(a.y, b.y), max(c.y, d.y))
+	}
+	if a.y == b.y && c.y == d.y {
+		return a.y == c.y && max(min(a.x, b.x), min(c.x, d.x)) <= min(max(a.x, b.x), max(c.x, d.x))
+	}
+	if a.y == b.y {
+		a, b, c, d = c, d, a, b
+	}
+	return a.x >= min(c.x, d.x) && a.x <= max(c.x, d.x) && c.y >= min(a.y, b.y) && c.y <= max(a.y, b.y)
+}
+
+func validateTheaterPolygon(points []theaterPoint) error {
+	if len(points) < 4 {
+		return errors.New("polygon requires at least four vertices")
+	}
+	seen := make(map[theaterPoint]bool, len(points))
+	for i, a := range points {
+		b := points[(i+1)%len(points)]
+		if seen[a] {
+			return errors.New("polygon contains a repeated vertex")
+		}
+		seen[a] = true
+		if a == b || (a.x != b.x && a.y != b.y) {
+			return errors.New("polygon edges must be nonzero horizontal or vertical segments")
+		}
+	}
+	for i, a := range points {
+		b := points[(i+1)%len(points)]
+		for j := i + 1; j < len(points); j++ {
+			c, d := points[j], points[(j+1)%len(points)]
+			if !theaterEdgesIntersect(a, b, c, d) {
+				continue
+			}
+			adjacent := j == i+1 || (i == 0 && j == len(points)-1)
+			if !adjacent {
+				return errors.New("polygon edges intersect or touch away from adjacent vertices")
+			}
+			if a.x == b.x && c.x == d.x && max(min(a.y, b.y), min(c.y, d.y)) < min(max(a.y, b.y), max(c.y, d.y)) {
+				return errors.New("adjacent polygon edges overlap")
+			}
+			if a.y == b.y && c.y == d.y && max(min(a.x, b.x), min(c.x, d.x)) < min(max(a.x, b.x), max(c.x, d.x)) {
+				return errors.New("adjacent polygon edges overlap")
+			}
+		}
+	}
+	return nil
+}
+
+func theaterAxis(values []int64) ([]int64, map[int64]int) {
+	slices.Sort(values)
+	values = slices.Compact(values)
+	axis := make([]int64, 0, len(values))
+	indices := make(map[int64]int, len(values))
+	for i, value := range values {
+		if i > 0 && values[i-1] < value-1 {
+			axis = append(axis, values[i-1]+1)
+		}
+		indices[value] = len(axis)
+		axis = append(axis, value)
+	}
+	return axis, indices
+}
+
+type theaterMask struct {
+	prefix []int
+	stride int
+	xs, ys map[int64]int
+}
+
+func theaterMaskSize(columns, rows int) (int, error) {
+	const maxEntries = 4 * 1024 * 1024
+	if columns < 1 || rows < 1 || columns >= maxEntries || rows >= maxEntries || columns+1 > maxEntries/(rows+1) {
+		return 0, errors.New("compressed polygon exceeds the prefix table budget")
+	}
+	return (columns + 1) * (rows + 1), nil
+}
+
+func buildTheaterMask(points []theaterPoint) (*theaterMask, error) {
+	if err := validateTheaterPolygon(points); err != nil {
+		return nil, err
+	}
+	xValues, yValues := make([]int64, len(points)), make([]int64, len(points))
+	for i, p := range points {
+		xValues[i], yValues[i] = p.x, p.y
+	}
+	xs, xIndex := theaterAxis(xValues)
+	ys, yIndex := theaterAxis(yValues)
+	entries, err := theaterMaskSize(len(xs), len(ys))
+	if err != nil {
+		return nil, err
+	}
+	mask := &theaterMask{prefix: make([]int, entries), stride: len(xs) + 1, xs: xIndex, ys: yIndex}
+	inside := make([]bool, len(xs))
+	crossings := make([]int, 0, len(points))
+	for row, y := range ys {
+		clear(inside)
+		crossings = crossings[:0]
+		for i, a := range points {
+			b := points[(i+1)%len(points)]
+			if a.x == b.x && y >= min(a.y, b.y) && y < max(a.y, b.y) {
+				crossings = append(crossings, xIndex[a.x])
+			}
+		}
+		slices.Sort(crossings)
+		if len(crossings)%2 != 0 {
+			return nil, errors.New("polygon has an unmatched scanline crossing")
+		}
+		for i := 0; i < len(crossings); i += 2 {
+			for column := crossings[i]; column <= crossings[i+1]; column++ {
+				inside[column] = true
+			}
+		}
+		for i, a := range points {
+			b := points[(i+1)%len(points)]
+			if a.y == b.y && a.y == y {
+				for column := min(xIndex[a.x], xIndex[b.x]); column <= max(xIndex[a.x], xIndex[b.x]); column++ {
+					inside[column] = true
+				}
+			} else if a.x == b.x && y >= min(a.y, b.y) && y <= max(a.y, b.y) {
+				inside[xIndex[a.x]] = true
+			}
+		}
+		outside := 0
+		for column, on := range inside {
+			if !on {
+				outside++
+			}
+			mask.prefix[(row+1)*mask.stride+column+1] = mask.prefix[row*mask.stride+column+1] + outside
+		}
+	}
+	return mask, nil
+}
+
+func (m *theaterMask) contains(a, b theaterPoint) bool {
+	x1, x2 := min(m.xs[a.x], m.xs[b.x]), max(m.xs[a.x], m.xs[b.x])+1
+	y1, y2 := min(m.ys[a.y], m.ys[b.y]), max(m.ys[a.y], m.ys[b.y])+1
+	right := m.prefix[y2*m.stride+x2] - m.prefix[y1*m.stride+x2]
+	left := m.prefix[y2*m.stride+x1] - m.prefix[y1*m.stride+x1]
+	return right == left
+}
+
+func (d Day9) Part1(input string) (string, error) {
+	points, err := parseTheaterPoints(input)
+	if err != nil {
+		return "", err
+	}
 	var best int64
-	for i := 0; i < len(pts); i++ {
-		for j := i + 1; j < len(pts); j++ {
-			dx := pts[i].x - pts[j].x
-			if dx < 0 {
-				dx = -dx
+	for i, a := range points {
+		for _, b := range points[i+1:] {
+			area, err := theaterArea(a, b)
+			if err != nil {
+				return "", err
 			}
-			dy := pts[i].y - pts[j].y
-			if dy < 0 {
-				dy = -dy
-			}
-			area := (dx + 1) * (dy + 1)
-			if area > best {
-				best = area
-			}
+			best = max(best, area)
 		}
 	}
-
 	return strconv.FormatInt(best, 10), nil
 }
 
 func (d Day9) Part2(input string) (string, error) {
-	lines := strings.Split(strings.TrimSpace(input), "\n")
-	type point struct {
-		x, y int64
+	points, err := parseTheaterPoints(input)
+	if err != nil {
+		return "", err
 	}
-	var verts []point
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		parts := strings.Split(line, ",")
-		if len(parts) != 2 {
-			return "", errors.New("invalid line: " + line)
-		}
-		xStr := strings.TrimSpace(parts[0])
-		yStr := strings.TrimSpace(parts[1])
-
-		x, err := strconv.ParseInt(xStr, 10, 64)
-		if err != nil {
-			return "", err
-		}
-		y, err := strconv.ParseInt(yStr, 10, 64)
-		if err != nil {
-			return "", err
-		}
-		verts = append(verts, point{x: x, y: y})
+	mask, err := buildTheaterMask(points)
+	if err != nil {
+		return "", err
 	}
-
-	if len(verts) < 2 {
-		return "0", nil
-	}
-
-	// Build row spans using scanline over vertical edges.
-	// For each row, store single [l,r] span (simple polygon assumption).
-	type span struct {
-		l, r int64
-	}
-	rowSpan := make(map[int64]span)
-
-	n := len(verts)
-	rowEdges := make(map[int64][]int64)
-	for i := 0; i < n; i++ {
-		p1 := verts[i]
-		p2 := verts[(i+1)%n]
-		if p1.x == p2.x {
-			x := p1.x
-			y1, y2 := p1.y, p2.y
-			if y1 > y2 {
-				y1, y2 = y2, y1
-			}
-			for y := y1; y < y2; y++ {
-				rowEdges[y] = append(rowEdges[y], x)
-			}
-		}
-	}
-
-	for y, xs := range rowEdges {
-		if len(xs) < 2 {
-			continue
-		}
-		minX, maxX := xs[0], xs[0]
-		for _, x := range xs[1:] {
-			if x < minX {
-				minX = x
-			}
-			if x > maxX {
-				maxX = x
-			}
-		}
-		rowSpan[y] = span{l: minX, r: maxX}
-	}
-
-	var yMin, yMax int64
-	first := true
-	for y := range rowSpan {
-		if first {
-			yMin, yMax = y, y
-			first = false
-		} else {
-			if y < yMin {
-				yMin = y
-			}
-			if y > yMax {
-				yMax = y
-			}
-		}
-	}
-
-	if first {
-		return "0", nil
-	}
-
-	// Build prefix structures for O(1) range queries:
-	// For any y-range [yLo, yHi], we need:
-	//   max of all rowSpan[y].l for y in [yLo, yHi]  (tightest left bound)
-	//   min of all rowSpan[y].r for y in [yLo, yHi]  (tightest right bound)
-	// If maxL <= xLo and xHi <= minR, rectangle is valid.
-
-	height := yMax - yMin + 1
-	// Arrays indexed by (y - yMin)
-	leftBound := make([]int64, height)  // rowSpan[y].l or a sentinel
-	rightBound := make([]int64, height) // rowSpan[y].r or a sentinel
-
-	const bigVal = int64(1 << 60)
-	for i := range leftBound {
-		leftBound[i] = -bigVal // will take max, so start very negative
-		rightBound[i] = bigVal // will take min, so start very positive
-	}
-
-	for y, sp := range rowSpan {
-		idx := y - yMin
-		leftBound[idx] = sp.l
-		rightBound[idx] = sp.r
-	}
-
-	// Build sparse table for range-max of leftBound and range-min of rightBound
-	// Using simple O(H) scan per query is still too slow for O(n^2) pairs.
-	// Instead, use a sparse table for O(1) queries after O(H log H) preprocessing.
-
-	logH := 0
-	for (1 << logH) <= int(height) {
-		logH++
-	}
-
-	// sparseMaxL[k][i] = max of leftBound[i..i+2^k-1]
-	// sparseMinR[k][i] = min of rightBound[i..i+2^k-1]
-	sparseMaxL := make([][]int64, logH)
-	sparseMinR := make([][]int64, logH)
-	for k := 0; k < logH; k++ {
-		sparseMaxL[k] = make([]int64, height)
-		sparseMinR[k] = make([]int64, height)
-	}
-
-	for i := range height {
-		sparseMaxL[0][i] = leftBound[i]
-		sparseMinR[0][i] = rightBound[i]
-	}
-
-	for k := 1; k < logH; k++ {
-		span := int64(1) << (k - 1)
-		for i := int64(0); i+span < height; i++ {
-			sparseMaxL[k][i] = sparseMaxL[k-1][i]
-			if sparseMaxL[k-1][i+span] > sparseMaxL[k][i] {
-				sparseMaxL[k][i] = sparseMaxL[k-1][i+span]
-			}
-			sparseMinR[k][i] = sparseMinR[k-1][i]
-			if sparseMinR[k-1][i+span] < sparseMinR[k][i] {
-				sparseMinR[k][i] = sparseMinR[k-1][i+span]
-			}
-		}
-	}
-
-	queryMaxL := func(lo, hi int64) int64 {
-		// max over [lo, hi] inclusive, indices relative to yMin
-		if lo > hi {
-			return -bigVal
-		}
-		length := hi - lo + 1
-		k := 0
-		for (int64(1) << (k + 1)) <= length {
-			k++
-		}
-		span := int64(1) << k
-		a := sparseMaxL[k][lo]
-		b := sparseMaxL[k][hi-span+1]
-		if b > a {
-			return b
-		}
-		return a
-	}
-
-	queryMinR := func(lo, hi int64) int64 {
-		// min over [lo, hi] inclusive
-		if lo > hi {
-			return bigVal
-		}
-		length := hi - lo + 1
-		k := 0
-		for (int64(1) << (k + 1)) <= length {
-			k++
-		}
-		span := int64(1) << k
-		a := sparseMinR[k][lo]
-		b := sparseMinR[k][hi-span+1]
-		if b < a {
-			return b
-		}
-		return a
-	}
-
 	var best int64
-	for i := 0; i < len(verts); i++ {
-		for j := i + 1; j < len(verts); j++ {
-			x1, y1 := verts[i].x, verts[i].y
-			x2, y2 := verts[j].x, verts[j].y
-
-			var xLo, xHi, yLo, yHi int64
-			if x1 < x2 {
-				xLo, xHi = x1, x2
-			} else {
-				xLo, xHi = x2, x1
+	for i, a := range points {
+		for _, b := range points[i+1:] {
+			area, err := theaterArea(a, b)
+			if err != nil {
+				return "", err
 			}
-			if y1 < y2 {
-				yLo, yHi = y1, y2
-			} else {
-				yLo, yHi = y2, y1
-			}
-
-			width := xHi - xLo + 1
-			rectHeight := yHi - yLo + 1
-			area := width * rectHeight
-			if area <= best {
-				continue
-			}
-
-			idxLo := yLo - yMin
-			idxHi := yHi - yMin
-
-			if idxLo < 0 || idxHi >= height {
-				continue
-			}
-
-			maxL := queryMaxL(idxLo, idxHi)
-			minR := queryMinR(idxLo, idxHi)
-
-			// Rectangle [xLo, xHi] x [yLo, yHi] is valid iff
-			// for every row y in [yLo, yHi]: rowSpan[y].l <= xLo AND xHi <= rowSpan[y].r
-			// Equivalently: max(rowSpan[y].l) <= xLo AND xHi <= min(rowSpan[y].r)
-			if maxL <= xLo && xHi <= minR {
+			if area > best && mask.contains(a, b) {
 				best = area
 			}
 		}
 	}
-
 	return strconv.FormatInt(best, 10), nil
 }
 
-func init() {
-	solve.Register(Day9{})
-}
+func init() { solve.Register(Day9{}) }
